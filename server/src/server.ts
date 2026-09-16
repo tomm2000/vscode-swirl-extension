@@ -28,7 +28,6 @@ import {
 
 import { TextDocument } from 'vscode-languageserver-textdocument';
 import { SWIRL_PREDICATES, SWIRL_KEYWORDS } from './swirl-data';
-import { Parser } from './parser';
 import { SwirlFormatter } from './formatter';
 import {
   getDocumentSymbols,
@@ -36,6 +35,8 @@ import {
   getReferences,
   getFoldingRanges
 } from './features';
+import { analyzeSemantics } from './analyzer';
+import { getHover } from './hover';
 
 const connection = createConnection(ProposedFeatures.all);
 const documents: TextDocuments<TextDocument> = new TextDocuments(TextDocument);
@@ -69,19 +70,7 @@ documents.onDidClose((e) => {
 
 function validateDocument(document: TextDocument): void {
   const text = document.getText();
-  const parser = new Parser(text);
-  parser.parseWorkflow();
-
-  const diagnostics: Diagnostic[] = parser.diagnostics.map((d) => ({
-    severity: d.severity,
-    range: {
-      start: { line: d.range.start.line, character: d.range.start.character },
-      end: { line: d.range.end.line, character: d.range.end.character }
-    },
-    message: d.message,
-    source: 'swirl'
-  }));
-
+  const diagnostics: Diagnostic[] = analyzeSemantics(text);
   connection.sendDiagnostics({ uri: document.uri, diagnostics });
 }
 
@@ -165,47 +154,7 @@ connection.onFoldingRanges((params: FoldingRangeParams): FoldingRange[] => {
 connection.onHover((params: TextDocumentPositionParams): Hover | null => {
   const document = documents.get(params.textDocument.uri);
   if (!document) return null;
-
-  const wordRange = getWordRangeAtPosition(document, params.position);
-  if (!wordRange) return null;
-
-  const word = document.getText(wordRange);
-
-  if (SWIRL_PREDICATES[word]) {
-    const doc = SWIRL_PREDICATES[word];
-    return {
-      contents: {
-        kind: MarkupKind.Markdown,
-        value: [
-          `### Predicate: \`${doc.name}\``,
-          `\`\`\`swirl\n${doc.signature}\n\`\`\``,
-          doc.description,
-          `**Example:**`,
-          `\`\`\`swirl\n${doc.example}\n\`\`\``
-        ].join('\n\n')
-      },
-      range: wordRange
-    };
-  }
-
-  if (SWIRL_KEYWORDS[word]) {
-    const doc = SWIRL_KEYWORDS[word];
-    return {
-      contents: {
-        kind: MarkupKind.Markdown,
-        value: [
-          `### Keyword / Constant: \`${doc.name}\``,
-          `\`\`\`swirl\n${doc.signature}\n\`\`\``,
-          doc.description,
-          `**Example:**`,
-          `\`\`\`swirl\n${doc.example}\n\`\`\``
-        ].join('\n\n')
-      },
-      range: wordRange
-    };
-  }
-
-  return null;
+  return getHover(document.getText(), params.position);
 });
 
 // Completion Provider
@@ -242,33 +191,6 @@ connection.onCompletion((_params: TextDocumentPositionParams): CompletionItem[] 
 
   return completions;
 });
-
-function getWordRangeAtPosition(document: TextDocument, position: Position): Range | null {
-  const line = document.getText({
-    start: { line: position.line, character: 0 },
-    end: { line: position.line + 1, character: 0 }
-  });
-
-  const char = position.character;
-  if (char < 0 || char >= line.length) return null;
-
-  let start = char;
-  while (start > 0 && /[a-zA-Z0-9_]/.test(line[start - 1])) {
-    start--;
-  }
-
-  let end = char;
-  while (end < line.length && /[a-zA-Z0-9_]/.test(line[end])) {
-    end++;
-  }
-
-  if (start === end) return null;
-
-  return {
-    start: { line: position.line, character: start },
-    end: { line: position.line, character: end }
-  };
-}
 
 documents.listen(connection);
 connection.listen();
