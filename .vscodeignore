@@ -1,0 +1,16 @@
+.git/**
+.vscode/**
+.gitignore
+.vscodeignore
+pnpm-lock.yaml
+pnpm-workspace.yaml
+tsconfig.json
+client/tsconfig.json
+client/src/**
+client/node_modules/**
+server/tsconfig.json
+server/src/**
+server/node_modules/**
+node_modules/**
+**/*.ts
+**/*.tsbuildinfo

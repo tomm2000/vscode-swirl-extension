@@ -1,0 +1,64 @@
+{
+  "name": "vscode-swirl",
+  "displayName": "Swirl Intermediate Language Support",
+  "description": "Rich language support for the Swirl intermediate language (.swirl) featuring syntax highlighting, document formatting, diagnostics, and snippets.",
+  "version": "0.1.0",
+  "publisher": "tommo",
+  "engines": {
+    "vscode": "^1.75.0"
+  },
+  "categories": [
+    "Programming Languages",
+    "Formatters",
+    "Linters",
+    "Snippets"
+  ],
+  "activationEvents": [
+    "onLanguage:swirl"
+  ],
+  "main": "./client/out/extension",
+  "contributes": {
+    "languages": [
+      {
+        "id": "swirl",
+        "aliases": [
+          "Swirl",
+          "swirl"
+        ],
+        "extensions": [
+          ".swirl"
+        ],
+        "configuration": "./language-configuration.json"
+      }
+    ],
+    "grammars": [
+      {
+        "language": "swirl",
+        "scopeName": "source.swirl",
+        "path": "./syntaxes/swirl.tmLanguage.json"
+      }
+    ],
+    "snippets": [
+      {
+        "language": "swirl",
+        "path": "./snippets/swirl.json"
+      }
+    ],
+    "commands": [
+      {
+        "command": "swirl.formatDocument",
+        "title": "Format Swirl Document",
+        "category": "Swirl"
+      }
+    ]
+  },
+  "scripts": {
+    "vscode:prepublish": "pnpm run compile",
+    "compile": "tsc -b client server",
+    "watch": "tsc -b client server -w",
+    "test": "node server/out/test/formatter.test.js"
+  },
+  "devDependencies": {
+    "typescript": "^5.3.3"
+  }
+}

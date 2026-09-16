@@ -1,0 +1,61 @@
+{
+  "Location": {
+    "prefix": "loc",
+    "body": [
+      "<${1:l0}, {${2:(p1, d1)}},",
+      "  ${3:trace}",
+      ">"
+    ],
+    "description": "Swirl location definition"
+  },
+  "Exec Predicate": {
+    "prefix": "exec",
+    "body": [
+      "exec(${1:step}, {${2:(p_in, d_in)}} -> {${3:(p_out, d_out)}}, {${4:location}})"
+    ],
+    "description": "Swirl exec predicate"
+  },
+  "Send Predicate": {
+    "prefix": "send",
+    "body": [
+      "send(${1:data} -> ${2:port}, ${3:src}, ${4:dst})"
+    ],
+    "description": "Swirl send predicate"
+  },
+  "Recv Predicate": {
+    "prefix": "recv",
+    "body": [
+      "recv(${1:data} -> ${2:port}, ${3:src}, ${4:dst})"
+    ],
+    "description": "Swirl recv predicate"
+  },
+  "Move Predicate": {
+    "prefix": "move",
+    "body": [
+      "move(${1:data} -> ${2:port}, ${3:src}, ${4:dst})"
+    ],
+    "description": "Swirl move predicate"
+  },
+  "Replication": {
+    "prefix": "repl",
+    "body": [
+      "!(",
+      "  ${1:trace}",
+      ")"
+    ],
+    "description": "Swirl replication block"
+  },
+  "Choice": {
+    "prefix": "choice",
+    "body": [
+      "(",
+      "  ${1:branch1}",
+      ")",
+      "+",
+      "(",
+      "  ${2:branch2}",
+      ")"
+    ],
+    "description": "Swirl choice block"
+  }
+}

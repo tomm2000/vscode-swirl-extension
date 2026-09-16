@@ -1,0 +1,156 @@
+{
+  "$schema": "https://raw.githubusercontent.com/martinring/tmlanguage/master/tmlanguage.json",
+  "name": "Swirl",
+  "scopeName": "source.swirl",
+  "patterns": [
+    {
+      "include": "#compiler-hints"
+    },
+    {
+      "include": "#comments"
+    },
+    {
+      "include": "#predicates"
+    },
+    {
+      "include": "#constants"
+    },
+    {
+      "include": "#keywords"
+    },
+    {
+      "include": "#operators"
+    },
+    {
+      "include": "#delimiters"
+    },
+    {
+      "include": "#numbers"
+    },
+    {
+      "include": "#identifiers"
+    }
+  ],
+  "repository": {
+    "compiler-hints": {
+      "patterns": [
+        {
+          "match": "(//\\s*@compiler_hint_(?:start|end))\\s*(.*)$",
+          "captures": {
+            "1": {
+              "name": "keyword.control.directive.swirl"
+            },
+            "2": {
+              "name": "meta.embedded.json.swirl string.unquoted.swirl"
+            }
+          }
+        }
+      ]
+    },
+    "comments": {
+      "patterns": [
+        {
+          "name": "comment.line.double-slash.swirl",
+          "match": "//.*$"
+        },
+        {
+          "name": "comment.block.swirl",
+          "begin": "/\\*",
+          "end": "\\*/"
+        }
+      ]
+    },
+    "predicates": {
+      "patterns": [
+        {
+          "match": "\\b(exec|send|recv|move)\\b(?=\\s*\\()",
+          "name": "support.function.predicate.swirl"
+        }
+      ]
+    },
+    "constants": {
+      "patterns": [
+        {
+          "match": "\\beof\\b",
+          "name": "constant.language.eof.swirl"
+        },
+        {
+          "match": "\\b0\\b",
+          "name": "constant.language.zero.swirl"
+        }
+      ]
+    },
+    "keywords": {
+      "patterns": [
+        {
+          "match": "\\bin\\b",
+          "name": "keyword.operator.in.swirl"
+        }
+      ]
+    },
+    "operators": {
+      "patterns": [
+        {
+          "match": "->",
+          "name": "keyword.operator.arrow.swirl"
+        },
+        {
+          "match": "\\+",
+          "name": "keyword.operator.choice.swirl"
+        },
+        {
+          "match": "\\|",
+          "name": "keyword.operator.parallel.swirl"
+        },
+        {
+          "match": "!",
+          "name": "keyword.operator.replication.swirl"
+        },
+        {
+          "match": "\\.",
+          "name": "keyword.operator.sequence.swirl"
+        }
+      ]
+    },
+    "delimiters": {
+      "patterns": [
+        {
+          "match": "[<>]",
+          "name": "punctuation.definition.location.swirl"
+        },
+        {
+          "match": "[{}]",
+          "name": "punctuation.section.set.swirl"
+        },
+        {
+          "match": "[()]",
+          "name": "punctuation.section.parens.swirl"
+        },
+        {
+          "match": "[\\[\\]]",
+          "name": "punctuation.section.brackets.swirl"
+        },
+        {
+          "match": ",",
+          "name": "punctuation.separator.comma.swirl"
+        }
+      ]
+    },
+    "numbers": {
+      "patterns": [
+        {
+          "match": "\\b\\d+\\b",
+          "name": "constant.numeric.decimal.swirl"
+        }
+      ]
+    },
+    "identifiers": {
+      "patterns": [
+        {
+          "match": "\\b[a-zA-Z_][a-zA-Z0-9_]*\\b",
+          "name": "variable.other.swirl"
+        }
+      ]
+    }
+  }
+}
