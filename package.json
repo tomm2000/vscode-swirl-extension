@@ -1,7 +1,7 @@
 {
   "name": "vscode-swirl",
   "displayName": "Swirl Intermediate Language Support",
-  "description": "Rich language support for the Swirl intermediate language (.swirl) featuring syntax highlighting, document formatting, diagnostics, and snippets.",
+  "description": "Rich language support for the Swirl intermediate language (.swirl) featuring syntax highlighting, document formatting, diagnostics, outline symbols, definition navigation, references, and snippets.",
   "version": "0.1.0",
   "publisher": "tommo",
   "engines": {
@@ -58,7 +58,7 @@
     "watch": "tsc -b client server -w",
     "bundle": "esbuild client/src/extension.ts --bundle --outfile=client/out/extension.js --external:vscode --platform=node --format=cjs && esbuild server/src/server.ts --bundle --outfile=server/out/server.js --platform=node --format=cjs",
     "package": "vsce package --no-dependencies",
-    "test": "node server/out/test/formatter.test.js"
+    "test": "node server/out/test/formatter.test.js && node server/out/test/features.test.js"
   },
   "devDependencies": {
     "@vscode/vsce": "^4.0.0",

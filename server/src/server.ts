@@ -15,13 +15,27 @@ import {
   DocumentRangeFormattingParams,
   TextEdit,
   Range,
-  Position
+  Position,
+  DocumentSymbolParams,
+  DocumentSymbol,
+  DefinitionParams,
+  Definition,
+  ReferenceParams,
+  Location as LspLocation,
+  FoldingRangeParams,
+  FoldingRange
 } from 'vscode-languageserver/node';
 
 import { TextDocument } from 'vscode-languageserver-textdocument';
 import { SWIRL_PREDICATES, SWIRL_KEYWORDS } from './swirl-data';
 import { Parser } from './parser';
 import { SwirlFormatter } from './formatter';
+import {
+  getDocumentSymbols,
+  getDefinition,
+  getReferences,
+  getFoldingRanges
+} from './features';
 
 const connection = createConnection(ProposedFeatures.all);
 const documents: TextDocuments<TextDocument> = new TextDocuments(TextDocument);
@@ -36,7 +50,11 @@ connection.onInitialize((_params: InitializeParams): InitializeResult => {
       completionProvider: {
         resolveProvider: false,
         triggerCharacters: ['(', '{', '<', '.', '+', '|', '!', ' ']
-      }
+      },
+      documentSymbolProvider: true,
+      definitionProvider: true,
+      referencesProvider: true,
+      foldingRangeProvider: true
     }
   };
 });
@@ -108,6 +126,39 @@ connection.onDocumentRangeFormatting((params: DocumentRangeFormattingParams): Te
 
   const formatted = formatter.fallbackFormat(text);
   return [TextEdit.replace(params.range, formatted)];
+});
+
+// Document Symbols Provider (Outline & Breadcrumbs)
+connection.onDocumentSymbol((params: DocumentSymbolParams): DocumentSymbol[] => {
+  const document = documents.get(params.textDocument.uri);
+  if (!document) return [];
+  return getDocumentSymbols(document.getText());
+});
+
+// Definition Provider (F12)
+connection.onDefinition((params: DefinitionParams): Definition | null => {
+  const document = documents.get(params.textDocument.uri);
+  if (!document) return null;
+  return getDefinition(document.getText(), params.textDocument.uri, params.position);
+});
+
+// References Provider (Shift+F12)
+connection.onReferences((params: ReferenceParams): LspLocation[] => {
+  const document = documents.get(params.textDocument.uri);
+  if (!document) return [];
+  return getReferences(
+    document.getText(),
+    params.textDocument.uri,
+    params.position,
+    params.context.includeDeclaration
+  );
+});
+
+// Folding Ranges Provider
+connection.onFoldingRanges((params: FoldingRangeParams): FoldingRange[] => {
+  const document = documents.get(params.textDocument.uri);
+  if (!document) return [];
+  return getFoldingRanges(document.getText());
 });
 
 // Hover Provider
