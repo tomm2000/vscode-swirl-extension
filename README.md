@@ -69,7 +69,18 @@ vscode-swirl-extension/
    pnpm test
    ```
 
-4. Debug the extension:
+4. Build and Package as `.vsix`:
+   ```bash
+   pnpm run package
+   ```
+   This compiles, bundles both client and server into standalone CJS bundles with `esbuild`, and packages the extension into `vscode-swirl-<version>.vsix`.
+
+   To install the generated VSIX directly in VS Code / Cursor:
+   ```bash
+   code --install-extension vscode-swirl-0.1.0.vsix
+   ```
+
+5. Debug the extension:
    - Open this folder in VS Code.
    - Press <kbd>F5</kbd> (Launch Client) to start the Extension Development Host window.
    - In the new window, open any `.swirl` file to test syntax highlighting, formatting, and diagnostics.

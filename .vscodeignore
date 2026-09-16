@@ -11,6 +11,9 @@ client/node_modules/**
 server/tsconfig.json
 server/src/**
 server/node_modules/**
+server/out/test/**
 node_modules/**
 **/*.ts
 **/*.tsbuildinfo
+**/*.map
+*.vsix

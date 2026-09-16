@@ -53,12 +53,16 @@
     ]
   },
   "scripts": {
-    "vscode:prepublish": "pnpm run compile",
+    "vscode:prepublish": "pnpm run compile && pnpm run bundle",
     "compile": "tsc -b client server",
     "watch": "tsc -b client server -w",
+    "bundle": "esbuild client/src/extension.ts --bundle --outfile=client/out/extension.js --external:vscode --platform=node --format=cjs && esbuild server/src/server.ts --bundle --outfile=server/out/server.js --platform=node --format=cjs",
+    "package": "vsce package --no-dependencies",
     "test": "node server/out/test/formatter.test.js"
   },
   "devDependencies": {
+    "@vscode/vsce": "^4.0.0",
+    "esbuild": "^0.28.2",
     "typescript": "^5.3.3"
   }
 }
