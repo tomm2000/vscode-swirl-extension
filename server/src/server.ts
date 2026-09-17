@@ -44,6 +44,30 @@ import { getInlayHints, InlayHintSettings } from './inlay-hints';
 const connection = createConnection(ProposedFeatures.all);
 const documents: TextDocuments<TextDocument> = new TextDocuments(TextDocument);
 
+let inlayHintSettings: InlayHintSettings = {
+  enableParameterNames: true,
+  execFlowStyle: 'inOut',
+  enableLocationTags: false
+};
+
+async function updateConfiguration(): Promise<void> {
+  try {
+    const config = await connection.workspace.getConfiguration({
+      section: 'swirl.inlayHints'
+    });
+    if (config) {
+      inlayHintSettings = {
+        enableParameterNames: config.parameterNames?.enabled ?? true,
+        execFlowStyle: config.execFlowStyle ?? 'inOut',
+        enableLocationTags: config.locationTags?.enabled ?? false
+      };
+      connection.languages.inlayHint.refresh();
+    }
+  } catch {
+    // Keep defaults
+  }
+}
+
 connection.onInitialize((_params: InitializeParams): InitializeResult => {
   return {
     capabilities: {
@@ -62,6 +86,14 @@ connection.onInitialize((_params: InitializeParams): InitializeResult => {
       inlayHintProvider: true
     }
   };
+});
+
+connection.onInitialized(() => {
+  updateConfiguration();
+});
+
+connection.onDidChangeConfiguration(() => {
+  updateConfiguration();
 });
 
 documents.onDidChangeContent((change) => {
@@ -104,7 +136,7 @@ connection.onDocumentFormatting((params: DocumentFormattingParams): TextEdit[] =
   return [TextEdit.replace(fullRange, formatted)];
 });
 
-// Range Formatting Provider
+// Document Range Formatting Provider
 connection.onDocumentRangeFormatting((params: DocumentRangeFormattingParams): TextEdit[] => {
   const document = documents.get(params.textDocument.uri);
   if (!document) {
@@ -121,21 +153,21 @@ connection.onDocumentRangeFormatting((params: DocumentRangeFormattingParams): Te
   return [TextEdit.replace(params.range, formatted)];
 });
 
-// Document Symbols Provider (Outline & Breadcrumbs)
+// Document Symbol Provider (Outline)
 connection.onDocumentSymbol((params: DocumentSymbolParams): DocumentSymbol[] => {
   const document = documents.get(params.textDocument.uri);
   if (!document) return [];
   return getDocumentSymbols(document.getText());
 });
 
-// Definition Provider (F12)
+// Go to Definition Provider
 connection.onDefinition((params: DefinitionParams): Definition | null => {
   const document = documents.get(params.textDocument.uri);
   if (!document) return null;
   return getDefinition(document.getText(), params.textDocument.uri, params.position);
 });
 
-// References Provider (Shift+F12)
+// References Provider
 connection.onReferences((params: ReferenceParams): LspLocation[] => {
   const document = documents.get(params.textDocument.uri);
   if (!document) return [];
@@ -162,28 +194,10 @@ connection.onHover((params: TextDocumentPositionParams): Hover | null => {
 });
 
 // Inlay Hints Provider
-connection.languages.inlayHint.on(async (params: InlayHintParams): Promise<InlayHint[]> => {
+connection.languages.inlayHint.on((params: InlayHintParams): InlayHint[] => {
   const document = documents.get(params.textDocument.uri);
   if (!document) return [];
-
-  let settings: InlayHintSettings | undefined;
-  try {
-    const config = await connection.workspace.getConfiguration({
-      scopeUri: params.textDocument.uri,
-      section: 'swirl.inlayHints'
-    });
-    if (config) {
-      settings = {
-        enableParameterNames: config.parameterNames?.enabled ?? true,
-        execFlowStyle: config.execFlowStyle ?? 'inOut',
-        enableLocationTags: config.locationTags?.enabled ?? false
-      };
-    }
-  } catch {
-    // Default fallback
-  }
-
-  return getInlayHints(document.getText(), params.range, settings);
+  return getInlayHints(document.getText(), params.range, inlayHintSettings);
 });
 
 // Completion Provider

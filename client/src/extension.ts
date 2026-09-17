@@ -30,7 +30,8 @@ export function activate(context: ExtensionContext) {
   const clientOptions: LanguageClientOptions = {
     documentSelector: [{ scheme: 'file', language: 'swirl' }],
     synchronize: {
-      fileEvents: workspace.createFileSystemWatcher('**/*.swirl')
+      fileEvents: workspace.createFileSystemWatcher('**/*.swirl'),
+      configurationSection: 'swirl'
     }
   };
 
