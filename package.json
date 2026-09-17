@@ -96,7 +96,7 @@
     "watch": "tsc -b client server -w",
     "bundle": "esbuild client/src/extension.ts --bundle --outfile=client/out/extension.js --external:vscode --platform=node --format=cjs && esbuild server/src/server.ts --bundle --outfile=server/out/server.js --platform=node --format=cjs",
     "package": "vsce package --no-dependencies",
-    "test": "pnpm run compile && node server/out/test/formatter.test.js && node server/out/test/features.test.js && node server/out/test/tier2.test.js && node server/out/test/inlay-hints.test.js"
+    "test": "pnpm run compile && node server/out/test/formatter.test.js && node server/out/test/features.test.js && node server/out/test/tier2.test.js && node server/out/test/inlay-hints.test.js && node server/out/test/compiler-hints.test.js"
   },
   "devDependencies": {
     "@vscode/vsce": "^4.0.0",

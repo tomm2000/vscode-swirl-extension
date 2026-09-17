@@ -84,10 +84,82 @@ export interface WorkflowNode {
   range: Range;
 }
 
+export interface CompilerHintInfo {
+  action: 'begin' | 'end';
+  tag?: string; // e.g. "scatter.dispatch", "scatter.worker", "scatter.gather"
+  json: Record<string, any>;
+  rawJson?: string;
+  region?: string | number;
+  phase?: string;
+  directive: string;
+}
+
+export function parseCompilerHint(text: string): CompilerHintInfo | null {
+  const trimmed = text.trim();
+
+  // 1. New syntax:
+  //    // [compiler](compiler) begin scatter.dispatch {"region":0,"v":1}
+  //    // [compiler](compiler) end scatter.dispatch {"region":0}
+  //    // [compiler] begin/end ...
+  //    // @compiler begin/end ...
+  const newMatch = trimmed.match(
+    /^\/\/\s*(?:\[compiler\](?:\([^)]*\))?|@compiler)\s+(begin|end)(?:\s+([a-zA-Z0-9_.-]+))?(?:\s+({.*}))?$/
+  );
+  if (newMatch) {
+    let json: Record<string, any> = {};
+    if (newMatch[3]) {
+      try {
+        json = JSON.parse(newMatch[3]);
+      } catch {
+        // ignore malformed JSON
+      }
+    }
+    const tag = newMatch[2];
+    const region = json.region !== undefined ? json.region : undefined;
+    const phase = tag || json.phase;
+    return {
+      action: newMatch[1] as 'begin' | 'end',
+      tag,
+      json,
+      rawJson: newMatch[3],
+      region,
+      phase,
+      directive: newMatch[1]
+    };
+  }
+
+  // 2. Legacy syntax:
+  //    // @compiler_hint_start {"kind":"scatter", ...}
+  //    // @compiler_hint_end ...
+  const oldMatch = trimmed.match(/^\/\/\s*@compiler_hint_(start|end)(?:\s+({.*}))?$/);
+  if (oldMatch) {
+    let json: Record<string, any> = {};
+    if (oldMatch[2]) {
+      try {
+        json = JSON.parse(oldMatch[2]);
+      } catch {
+        // ignore malformed JSON
+      }
+    }
+    return {
+      action: oldMatch[1] === 'start' ? 'begin' : 'end',
+      tag: json.phase || json.kind,
+      json,
+      rawJson: oldMatch[2],
+      region: json.region,
+      phase: json.phase || json.kind,
+      directive: oldMatch[1]
+    };
+  }
+
+  return null;
+}
+
 export interface CommentNode {
   kind: 'comment';
   isBlock: boolean;
   isHint: boolean;
+  hintInfo?: CompilerHintInfo;
   text: string;
   range: Range;
 }
@@ -104,10 +176,12 @@ export class Parser {
 
     for (const token of allTokens) {
       if (token.kind === TokenKind.LineComment) {
+        const hintInfo = parseCompilerHint(token.value);
         this.comments.push({
           kind: 'comment',
           isBlock: false,
-          isHint: token.value.trim().startsWith('// @compiler_hint_'),
+          isHint: hintInfo !== null,
+          hintInfo: hintInfo ?? undefined,
           text: token.value,
           range: token.range
         });

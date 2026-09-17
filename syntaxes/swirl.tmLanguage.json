@@ -10,13 +10,10 @@
       "include": "#comments"
     },
     {
-      "include": "#predicates"
-    },
-    {
-      "include": "#constants"
-    },
-    {
       "include": "#keywords"
+    },
+    {
+      "include": "#predicates"
     },
     {
       "include": "#operators"
@@ -34,6 +31,23 @@
   "repository": {
     "compiler-hints": {
       "patterns": [
+        {
+          "match": "(\\/\\/\\s*(?:\\[compiler\\](?:\\([^)]*\\))?|@compiler))\\s+(begin|end)(?:\\s+([a-zA-Z0-9_.-]+))?(?:\\s+({.*}))?$",
+          "captures": {
+            "1": {
+              "name": "keyword.control.directive.swirl"
+            },
+            "2": {
+              "name": "keyword.control.swirl"
+            },
+            "3": {
+              "name": "entity.name.tag.swirl"
+            },
+            "4": {
+              "name": "meta.embedded.json.swirl string.unquoted.swirl"
+            }
+          }
+        },
         {
           "match": "(//\\s*@compiler_hint_(?:start|end))\\s*(.*)$",
           "captures": {
@@ -60,95 +74,103 @@
         }
       ]
     },
-    "predicates": {
-      "patterns": [
-        {
-          "match": "\\b(exec|send|recv|move)\\b(?=\\s*\\()",
-          "name": "support.function.predicate.swirl"
-        }
-      ]
-    },
-    "constants": {
-      "patterns": [
-        {
-          "match": "\\beof\\b",
-          "name": "constant.language.eof.swirl"
-        },
-        {
-          "match": "\\b0\\b",
-          "name": "constant.language.zero.swirl"
-        }
-      ]
-    },
     "keywords": {
       "patterns": [
         {
-          "match": "\\bin\\b",
-          "name": "keyword.operator.in.swirl"
+          "name": "keyword.control.swirl",
+          "match": "\\b(eof|in)\\b"
+        }
+      ]
+    },
+    "predicates": {
+      "patterns": [
+        {
+          "name": "support.function.predicate.swirl",
+          "match": "\\b(exec|send|recv|move)\\b"
         }
       ]
     },
     "operators": {
       "patterns": [
         {
-          "match": "->",
-          "name": "keyword.operator.arrow.swirl"
+          "name": "keyword.operator.flow.swirl",
+          "match": "->"
         },
         {
-          "match": "\\+",
-          "name": "keyword.operator.choice.swirl"
+          "name": "keyword.operator.sequence.swirl",
+          "match": "\\."
         },
         {
-          "match": "\\|",
-          "name": "keyword.operator.parallel.swirl"
+          "name": "keyword.operator.parallel.swirl",
+          "match": "\\|"
         },
         {
-          "match": "!",
-          "name": "keyword.operator.replication.swirl"
+          "name": "keyword.operator.choice.swirl",
+          "match": "\\+"
         },
         {
-          "match": "\\.",
-          "name": "keyword.operator.sequence.swirl"
+          "name": "keyword.operator.replication.swirl",
+          "match": "!"
+        },
+        {
+          "name": "keyword.operator.range.swirl",
+          "match": "\\.\\."
         }
       ]
     },
     "delimiters": {
       "patterns": [
         {
-          "match": "[<>]",
-          "name": "punctuation.definition.location.swirl"
+          "name": "punctuation.definition.location.begin.swirl",
+          "match": "<"
         },
         {
-          "match": "[{}]",
-          "name": "punctuation.section.set.swirl"
+          "name": "punctuation.definition.location.end.swirl",
+          "match": ">"
         },
         {
-          "match": "[()]",
-          "name": "punctuation.section.parens.swirl"
+          "name": "punctuation.section.parens.begin.swirl",
+          "match": "\\("
         },
         {
-          "match": "[\\[\\]]",
-          "name": "punctuation.section.brackets.swirl"
+          "name": "punctuation.section.parens.end.swirl",
+          "match": "\\)"
         },
         {
-          "match": ",",
-          "name": "punctuation.separator.comma.swirl"
+          "name": "punctuation.section.braces.begin.swirl",
+          "match": "\\{"
+        },
+        {
+          "name": "punctuation.section.braces.end.swirl",
+          "match": "\\}"
+        },
+        {
+          "name": "punctuation.section.brackets.begin.swirl",
+          "match": "\\["
+        },
+        {
+          "name": "punctuation.section.brackets.end.swirl",
+          "match": "\\]"
+        },
+        {
+          "name": "punctuation.separator.comma.swirl",
+          "match": ","
         }
       ]
     },
     "numbers": {
       "patterns": [
         {
-          "match": "\\b\\d+\\b",
-          "name": "constant.numeric.decimal.swirl"
+          "name": "constant.numeric.swirl",
+          "match": "\\b[0-9]+\\b"
         }
       ]
     },
     "identifiers": {
       "patterns": [
         {
-          "match": "\\b[a-zA-Z_][a-zA-Z0-9_]*\\b",
-          "name": "variable.other.swirl"
+          "name": "variable.other.identifier.swirl",
+          "match": "\\b[a-zA-Z_][a-zA-Z0-9_]*\\b"
         }
       ]
     }

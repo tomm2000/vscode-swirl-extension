@@ -1,6 +1,6 @@
 import { Hover, MarkupKind, Position, Range } from 'vscode-languageserver/node';
 import { SWIRL_PREDICATES, SWIRL_KEYWORDS } from './swirl-data';
-import { Parser, WorkflowNode, LocationNode, TraceNode, PredicateNode } from './parser';
+import { Parser, WorkflowNode, LocationNode, TraceNode, PredicateNode, parseCompilerHint } from './parser';
 import { Lexer, TokenKind } from './lexer';
 
 /**
@@ -16,49 +16,48 @@ export function getHover(text: string, position: Position): Hover | null {
   const lineText = lines[position.line];
 
   // 1. Check for compiler hint on current line
-  const hintMatch = lineText.match(/\/\/\s*@compiler_hint_(start|end)\s*({.*})/);
-  if (hintMatch) {
-    const directive = hintMatch[1];
-    try {
-      const meta = JSON.parse(hintMatch[2]);
-      const mdLines: string[] = [
-        `### 🧭 Swirl Compiler Hint: \`${directive.toUpperCase()}\``,
-        `Demarcates optimization and execution boundaries for distributed execution engines.`
-      ];
+  const hint = parseCompilerHint(lineText);
+  if (hint) {
+    const actionUpper = hint.action.toUpperCase();
+    const tagDisplay = hint.tag ? ` (\`${hint.tag}\`)` : '';
+    const mdLines: string[] = [
+      `### 🧭 Swirl Compiler Hint: \`${actionUpper}\`${tagDisplay}`,
+      `Demarcates optimization and execution boundaries for distributed execution engines.`
+    ];
 
-      const rows: string[] = [];
-      if (meta.region) rows.push(`| **Region** | \`${meta.region}\` |`);
-      if (meta.phase) rows.push(`| **Phase** | \`${meta.phase}\` |`);
-      if (meta.kind) rows.push(`| **Kind** | \`${meta.kind}\` |`);
-      if (meta.method) rows.push(`| **Method** | \`${meta.method}\` |`);
-      if (meta.parentRegion !== undefined) rows.push(`| **Parent Region** | \`${meta.parentRegion ?? 'none'}\` |`);
-      if (meta.controller) rows.push(`| **Controller** | \`${meta.controller}\` |`);
-      if (Array.isArray(meta.workers)) rows.push(`| **Workers** | \`${meta.workers.join(', ')}\` |`);
-      if (meta.step) rows.push(`| **Step** | \`${meta.step}\` |`);
-      if (Array.isArray(meta.scatterPorts)) rows.push(`| **Scatter Ports** | \`${meta.scatterPorts.join(', ')}\` |`);
-      if (Array.isArray(meta.inputPorts)) rows.push(`| **Input Ports** | \`${meta.inputPorts.join(', ')}\` |`);
-      if (Array.isArray(meta.outputPorts)) rows.push(`| **Output Ports** | \`${meta.outputPorts.join(', ')}\` |`);
-      if (meta.idPort) rows.push(`| **ID Port** | \`${meta.idPort}\` |`);
-      if (meta.payloadPort) rows.push(`| **Payload Port** | \`${meta.payloadPort}\` |`);
-      if (meta.version !== undefined) rows.push(`| **Schema Version** | \`${meta.version}\` |`);
+    const rows: string[] = [];
+    if (hint.tag) rows.push(`| **Phase / Target** | \`${hint.tag}\` |`);
+    if (hint.action) rows.push(`| **Action** | \`${hint.action}\` |`);
+    if (hint.region !== undefined) rows.push(`| **Region** | \`${hint.region}\` |`);
+    if (hint.json.v !== undefined) rows.push(`| **Schema Version** | \`${hint.json.v}\` |`);
+    if (hint.json.version !== undefined) rows.push(`| **Schema Version** | \`${hint.json.version}\` |`);
+    if (hint.json.kind) rows.push(`| **Kind** | \`${hint.json.kind}\` |`);
+    if (hint.json.method) rows.push(`| **Method** | \`${hint.json.method}\` |`);
+    if (hint.json.parentRegion !== undefined) rows.push(`| **Parent Region** | \`${hint.json.parentRegion ?? 'none'}\` |`);
+    if (hint.json.parent !== undefined) rows.push(`| **Parent Region** | \`${hint.json.parent ?? 'none'}\` |`);
+    if (hint.json.controller) rows.push(`| **Controller** | \`${hint.json.controller}\` |`);
+    if (Array.isArray(hint.json.workers)) rows.push(`| **Workers** | \`${hint.json.workers.join(', ')}\` |`);
+    if (hint.json.step) rows.push(`| **Step** | \`${hint.json.step}\` |`);
+    if (Array.isArray(hint.json.scatterPorts)) rows.push(`| **Scatter Ports** | \`${hint.json.scatterPorts.join(', ')}\` |`);
+    if (Array.isArray(hint.json.inputPorts)) rows.push(`| **Input Ports** | \`${hint.json.inputPorts.join(', ')}\` |`);
+    if (Array.isArray(hint.json.outputPorts)) rows.push(`| **Output Ports** | \`${hint.json.outputPorts.join(', ')}\` |`);
+    if (hint.json.idPort) rows.push(`| **ID Port** | \`${hint.json.idPort}\` |`);
+    if (hint.json.payloadPort) rows.push(`| **Payload Port** | \`${hint.json.payloadPort}\` |`);
 
-      if (rows.length > 0) {
-        mdLines.push('', '| Property | Value |', '| :--- | :--- |', ...rows);
-      }
-
-      return {
-        contents: {
-          kind: MarkupKind.Markdown,
-          value: mdLines.join('\n')
-        },
-        range: {
-          start: { line: position.line, character: 0 },
-          end: { line: position.line, character: lineText.length }
-        }
-      };
-    } catch {
-      // Ignore parse failure and fall through
+    if (rows.length > 0) {
+      mdLines.push('', '| Property | Value |', '| :--- | :--- |', ...rows);
     }
+
+    return {
+      contents: {
+        kind: MarkupKind.Markdown,
+        value: mdLines.join('\n')
+      },
+      range: {
+        start: { line: position.line, character: 0 },
+        end: { line: position.line, character: lineText.length }
+      }
+    };
   }
 
   // Find word at position
@@ -139,48 +138,45 @@ export function getHover(text: string, position: Position): Hover | null {
       ? loc.dataset.pairs.map((p) => `\`(${p.first}, ${p.second})\``).join(', ')
       : '*(empty)*';
 
-    const info = [
+    const md: string[] = [
       `### Location: \`<${loc.name}>\``,
-      `- **Initial Dataset**: ${dsText}`,
-      `- **Executed Steps**: ${steps.length > 0 ? Array.from(new Set(steps)).join(', ') : '*(none)*'}`,
-      `- **Sends to**: ${sendsTo.size > 0 ? Array.from(sendsTo).join(', ') : '*(none)*'}`,
-      `- **Receives from**: ${recvsFrom.size > 0 ? Array.from(recvsFrom).join(', ') : '*(none)*'}`
+      `**Datasets / Initial State:** ${dsText}`,
+      `**Steps Executed (${steps.length}):** ${steps.length > 0 ? steps.join(', ') : '*(none)*'}`,
+      `**Sends To:** ${sendsTo.size > 0 ? Array.from(sendsTo).join(', ') : '*(none)*'}`,
+      `**Receives From:** ${recvsFrom.size > 0 ? Array.from(recvsFrom).join(', ') : '*(none)*'}`
     ];
 
     return {
       contents: {
         kind: MarkupKind.Markdown,
-        value: info.join('\n')
+        value: md.join('\n\n')
       },
       range: wordRange
     };
   }
 
-  // 5. Check if word is a Step (exec)
+  // 5. Check if word is a Step (e.g. s_sc, s_work)
   for (const l of wf.locations) {
     const preds = collectPredicates(l.trace);
-    const execPred = preds.find((p): p is Extract<PredicateNode, { kind: 'exec' }> => p.kind === 'exec' && p.step === word);
-    if (execPred) {
-      const inFlow = execPred.flow.from.pairs.length > 0
-        ? execPred.flow.from.pairs.map((p) => `\`(${p.first}, ${p.second})\``).join(', ')
-        : '*(empty)*';
-      const outFlow = execPred.flow.to.pairs.length > 0
-        ? execPred.flow.to.pairs.map((p) => `\`(${p.first}, ${p.second})\``).join(', ')
-        : '*(empty)*';
-      const mapping = execPred.mapping.locations.map((m) => `\`${m}\``).join(', ');
+    const exec = preds.find(
+      (p): p is Extract<PredicateNode, { kind: 'exec' }> => p.kind === 'exec' && p.step === word
+    );
+    if (exec) {
+      const inPorts = exec.flow.from.pairs.map((p) => `\`(${p.first}, ${p.second})\``).join(', ');
+      const outPorts = exec.flow.to.pairs.map((p) => `\`(${p.first}, ${p.second})\``).join(', ');
+      const mappings = exec.mapping.locations.map((m) => `\`<${m}>\``).join(', ');
 
-      const info = [
-        `### Workflow Step: \`${execPred.step}\``,
-        `- **Location**: \`<${l.name}>\``,
-        `- **Input Flow**: ${inFlow}`,
-        `- **Output Flow**: ${outFlow}`,
-        `- **Target Mapping**: ${mapping}`
+      const md: string[] = [
+        `### Workflow Step: \`${exec.step}\``,
+        `**Mapped Locations:** ${mappings}`,
+        `**Input Data:** ${inPorts || '*(none)*'}`,
+        `**Output Data:** ${outPorts || '*(none)*'}`
       ];
 
       return {
         contents: {
           kind: MarkupKind.Markdown,
-          value: info.join('\n')
+          value: md.join('\n\n')
         },
         range: wordRange
       };
@@ -190,23 +186,29 @@ export function getHover(text: string, position: Position): Hover | null {
   return null;
 }
 
-function getWordRangeAtPosition(line: string, lineIndex: number, char: number): Range | null {
-  if (char < 0 || char >= line.length) return null;
+function getWordRangeAtPosition(lineText: string, line: number, character: number): Range | null {
+  if (character < 0 || character > lineText.length) {
+    return null;
+  }
 
-  let start = char;
-  while (start > 0 && /[a-zA-Z0-9_]/.test(line[start - 1])) {
+  const isWordChar = (ch: string) => /[a-zA-Z0-9_]/.test(ch);
+
+  let start = character;
+  while (start > 0 && isWordChar(lineText[start - 1])) {
     start--;
   }
 
-  let end = char;
-  while (end < line.length && /[a-zA-Z0-9_]/.test(line[end])) {
+  let end = character;
+  while (end < lineText.length && isWordChar(lineText[end])) {
     end++;
   }
 
-  if (start === end) return null;
+  if (start === end) {
+    return null;
+  }
 
   return {
-    start: { line: lineIndex, character: start },
-    end: { line: lineIndex, character: end }
+    start: { line, character: start },
+    end: { line, character: end }
   };
 }

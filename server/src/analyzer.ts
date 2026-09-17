@@ -1,5 +1,14 @@
 import { Diagnostic, DiagnosticSeverity } from 'vscode-languageserver/node';
-import { Parser, WorkflowNode, LocationNode, TraceNode, PredicateNode } from './parser';
+import {
+  Parser,
+  WorkflowNode,
+  LocationNode,
+  TraceNode,
+  PredicateNode,
+  CommentNode,
+  CompilerHintInfo,
+  parseCompilerHint
+} from './parser';
 
 /**
  * Performs semantic validation on a Swirl document.
@@ -33,9 +42,9 @@ export function analyzeSemantics(text: string): Diagnostic[] {
         severity: DiagnosticSeverity.Error,
         range: {
           start: { line: loc.range.start.line, character: loc.range.start.character },
-          end: { line: loc.range.start.line, character: loc.range.start.character + 1 + loc.name.length }
+          end: { line: loc.range.end.line, character: loc.range.end.character }
         },
-        message: `Duplicate location definition '<${loc.name}>'`,
+        message: `Duplicate location definition '<${loc.name}>' is defined multiple times.`,
         source: 'swirl'
       });
     } else {
@@ -43,55 +52,57 @@ export function analyzeSemantics(text: string): Diagnostic[] {
     }
   }
 
-  // Helper to collect all predicates recursively
-  function collectPredicates(trace: TraceNode | undefined, acc: PredicateNode[] = []): PredicateNode[] {
-    if (!trace) return acc;
-    if (trace.kind === 'tracePred') {
-      acc.push(trace.pred);
-    } else if (trace.kind === 'traceRepl') {
-      collectPredicates(trace.subTrace, acc);
-    } else if (trace.kind === 'traceParen') {
-      collectPredicates(trace.inner, acc);
-    } else if (trace.kind === 'traceOp') {
-      collectPredicates(trace.left, acc);
-      collectPredicates(trace.right, acc);
-    }
-    return acc;
-  }
-
-  interface CommEndpoint {
+  // 2. Collect communication channels: sends, recvs, moves
+  interface SendRecord {
     src: string;
     dst: string;
-    data: string;
     port: string;
     range: { start: { line: number; character: number }; end: { line: number; character: number } };
-    locName: string;
   }
 
-  const sends: CommEndpoint[] = [];
-  const recvs: CommEndpoint[] = [];
+  interface RecvRecord {
+    src: string;
+    dst: string;
+    port: string;
+    range: { start: { line: number; character: number }; end: { line: number; character: number } };
+  }
 
-  // 2. Validate location boundaries and references inside predicates
-  for (const loc of wf.locations) {
-    const preds = collectPredicates(loc.trace);
+  const allSends: SendRecord[] = [];
+  const allRecvs: RecvRecord[] = [];
 
-    for (const p of preds) {
+  function validateTrace(trace: TraceNode | undefined, currentLoc: string): void {
+    if (!trace) return;
+
+    if (trace.kind === 'tracePred') {
+      const p = trace.pred;
       if (p.kind === 'exec') {
-        for (const target of p.mapping.locations) {
-          if (!knownLocs.has(target)) {
+        // Validate mapping locations exist
+        for (const loc of p.mapping.locations) {
+          if (!knownLocs.has(loc)) {
             diagnostics.push({
               severity: DiagnosticSeverity.Error,
               range: {
-                start: { line: p.mapping.range.start.line, character: p.mapping.range.start.character },
-                end: { line: p.mapping.range.end.line, character: p.mapping.range.end.character }
+                start: { line: p.range.start.line, character: p.range.start.character },
+                end: { line: p.range.end.line, character: p.range.end.character }
               },
-              message: `Unknown location '${target}' in exec mapping target`,
+              message: `Unknown location '${loc}' referenced in exec mapping {${p.mapping.locations.join(', ')}}`,
               source: 'swirl'
             });
           }
         }
       } else if (p.kind === 'send' || p.kind === 'move') {
-        // Validate source location
+        // Validate src location matches current location (if single loc context)
+        if (p.src !== currentLoc) {
+          diagnostics.push({
+            severity: DiagnosticSeverity.Warning,
+            range: {
+              start: { line: p.range.start.line, character: p.range.start.character },
+              end: { line: p.range.end.line, character: p.range.end.character }
+            },
+            message: `${p.kind} source '${p.src}' does not match enclosing location '<${currentLoc}>' (conflicting source)`,
+            source: 'swirl'
+          });
+        }
         if (!knownLocs.has(p.src)) {
           diagnostics.push({
             severity: DiagnosticSeverity.Error,
@@ -102,42 +113,31 @@ export function analyzeSemantics(text: string): Diagnostic[] {
             message: `Unknown source location '${p.src}' in ${p.kind}`,
             source: 'swirl'
           });
-        } else if (p.src !== loc.name) {
-          diagnostics.push({
-            severity: DiagnosticSeverity.Warning,
-            range: {
-              start: { line: p.range.start.line, character: p.range.start.character },
-              end: { line: p.range.end.line, character: p.range.end.character }
-            },
-            message: `${p.kind} defined inside location '<${loc.name}>' specifies conflicting source '${p.src}'`,
-            source: 'swirl'
-          });
         }
-
-        // Validate destination locations
-        for (const dst of p.dst.locations) {
-          if (!knownLocs.has(dst)) {
+        for (const d of p.dst.locations) {
+          if (!knownLocs.has(d)) {
             diagnostics.push({
               severity: DiagnosticSeverity.Error,
               range: {
-                start: { line: p.dst.range.start.line, character: p.dst.range.start.character },
-                end: { line: p.dst.range.end.line, character: p.dst.range.end.character }
+                start: { line: p.range.start.line, character: p.range.start.character },
+                end: { line: p.range.end.line, character: p.range.end.character }
               },
-              message: `Unknown destination location '${dst}' in ${p.kind}`,
+              message: `Unknown destination location '${d}' in ${p.kind}`,
               source: 'swirl'
             });
           }
-          sends.push({
+          allSends.push({
             src: p.src,
-            dst,
-            data: p.data.name,
+            dst: d,
             port: p.port,
-            range: p.range,
-            locName: loc.name
+            range: {
+              start: { line: p.range.start.line, character: p.range.start.character },
+              end: { line: p.range.end.line, character: p.range.end.character }
+            }
           });
         }
       } else if (p.kind === 'recv') {
-        // Validate source location
+        // Destination is the current location
         if (!knownLocs.has(p.src)) {
           diagnostics.push({
             severity: DiagnosticSeverity.Error,
@@ -149,97 +149,99 @@ export function analyzeSemantics(text: string): Diagnostic[] {
             source: 'swirl'
           });
         }
-
-        // Validate destination location
-        if (!p.dst.locations.includes(loc.name)) {
-          diagnostics.push({
-            severity: DiagnosticSeverity.Warning,
-            range: {
-              start: { line: p.range.start.line, character: p.range.start.character },
-              end: { line: p.range.end.line, character: p.range.end.character }
-            },
-            message: `recv inside location '<${loc.name}>' specifies destination '${p.dst.locations.join(', ')}' which does not include '<${loc.name}>'`,
-            source: 'swirl'
-          });
-        }
-
-        for (const dst of p.dst.locations) {
-          if (!knownLocs.has(dst)) {
+        for (const d of p.dst.locations) {
+          if (!knownLocs.has(d)) {
             diagnostics.push({
               severity: DiagnosticSeverity.Error,
               range: {
-                start: { line: p.dst.range.start.line, character: p.dst.range.start.character },
-                end: { line: p.dst.range.end.line, character: p.dst.range.end.character }
+                start: { line: p.range.start.line, character: p.range.start.character },
+                end: { line: p.range.end.line, character: p.range.end.character }
               },
-              message: `Unknown destination location '${dst}' in recv`,
+              message: `Unknown destination location '${d}' in recv`,
               source: 'swirl'
             });
           }
-          recvs.push({
+          allRecvs.push({
             src: p.src,
-            dst,
-            data: p.data.name,
+            dst: d,
             port: p.port,
-            range: p.range,
-            locName: loc.name
+            range: {
+              start: { line: p.range.start.line, character: p.range.start.character },
+              end: { line: p.range.end.line, character: p.range.end.character }
+            }
           });
         }
       }
+    } else if (trace.kind === 'traceRepl') {
+      validateTrace(trace.subTrace, currentLoc);
+    } else if (trace.kind === 'traceParen') {
+      validateTrace(trace.inner, currentLoc);
+    } else if (trace.kind === 'traceOp') {
+      validateTrace(trace.left, currentLoc);
+      validateTrace(trace.right, currentLoc);
     }
   }
 
-  // 3. Channel Pairing (Deadlock & Mismatch Check)
-  // Only execute when the document has at least 2 defined locations
-  if (wf.locations.length > 1) {
-    for (const s of sends) {
-      if (!knownLocs.has(s.dst)) continue;
-      const match = recvs.some(
-        (r) =>
-          r.src === s.src &&
-          r.dst === s.dst &&
-          (r.port === s.port || r.data === s.data || r.port === s.data || r.data === s.port)
-      );
-      if (!match) {
-        diagnostics.push({
-          severity: DiagnosticSeverity.Warning,
-          range: {
-            start: { line: s.range.start.line, character: s.range.start.character },
-            end: { line: s.range.end.line, character: s.range.end.character }
-          },
-          message: `Potentially unmatched communication: send from '${s.src}' to '${s.dst}' on port/data '${s.port}' has no corresponding recv in '<${s.dst}>'`,
-          source: 'swirl'
-        });
-      }
-    }
+  for (const loc of wf.locations) {
+    validateTrace(loc.trace, loc.name);
+  }
 
-    for (const r of recvs) {
-      if (!knownLocs.has(r.src)) continue;
-      const match = sends.some(
-        (s) =>
-          s.src === r.src &&
-          s.dst === r.dst &&
-          (s.port === r.port || s.data === r.data || s.port === r.data || s.data === r.port)
-      );
-      if (!match) {
-        diagnostics.push({
-          severity: DiagnosticSeverity.Warning,
-          range: {
-            start: { line: r.range.start.line, character: r.range.start.character },
-            end: { line: r.range.end.line, character: r.range.end.character }
-          },
-          message: `Potentially unmatched communication: recv from '${r.src}' at '<${r.dst}>' on port/data '${r.port}' has no corresponding send/move in '<${r.src}>'`,
-          source: 'swirl'
-        });
-      }
+  // 3. Orphaned / Unmatched channel checking
+  // Cross-check sends with recvs
+  for (const s of allSends) {
+    // Look for matching recv
+    const hasMatch = allRecvs.some(
+      (r) =>
+        r.src === s.src &&
+        r.dst === s.dst &&
+        (r.port === s.port || r.port.includes(s.port) || s.port.includes(r.port) || s.port === 'eof' || r.port === 'eof')
+    );
+    if (!hasMatch && knownLocs.has(s.dst)) {
+      diagnostics.push({
+        severity: DiagnosticSeverity.Information,
+        range: {
+          start: { line: s.range.start.line, character: s.range.start.character },
+          end: { line: s.range.end.line, character: s.range.end.character }
+        },
+        message: `Potentially unmatched communication: send from '<${s.src}>' to '<${s.dst}>' on port '${s.port}' has no corresponding recv in '<${s.dst}>'`,
+        source: 'swirl'
+      });
+    }
+  }
+
+  for (const r of allRecvs) {
+    const hasMatch = allSends.some(
+      (s) =>
+        s.src === r.src &&
+        s.dst === r.dst &&
+        (s.port === r.port || s.port.includes(r.port) || r.port.includes(s.port) || s.port === 'eof' || r.port === 'eof')
+    );
+    if (!hasMatch && knownLocs.has(r.src)) {
+      diagnostics.push({
+        severity: DiagnosticSeverity.Information,
+        range: {
+          start: { line: r.range.start.line, character: r.range.start.character },
+          end: { line: r.range.end.line, character: r.range.end.character }
+        },
+        message: `Potentially unmatched communication: recv from '${r.src}' at '<${r.dst}>' on port/data '${r.port}' has no corresponding send/move in '<${r.src}>'`,
+        source: 'swirl'
+      });
     }
   }
 
   // 4. Validate Compiler Hints Pairing
-  const hintStack: { text: string; range: { start: { line: number; character: number }; end: { line: number; character: number } } }[] = [];
+  interface HintStackEntry {
+    info: CompilerHintInfo;
+    comment: CommentNode;
+  }
+  const hintStack: HintStackEntry[] = [];
   for (const c of parser.comments) {
-    if (c.text.includes('@compiler_hint_start')) {
-      hintStack.push({ text: c.text, range: c.range });
-    } else if (c.text.includes('@compiler_hint_end')) {
+    const info = c.hintInfo || parseCompilerHint(c.text);
+    if (!info) continue;
+
+    if (info.action === 'begin') {
+      hintStack.push({ info, comment: c });
+    } else if (info.action === 'end') {
       if (hintStack.length === 0) {
         diagnostics.push({
           severity: DiagnosticSeverity.Warning,
@@ -247,11 +249,32 @@ export function analyzeSemantics(text: string): Diagnostic[] {
             start: { line: c.range.start.line, character: c.range.start.character },
             end: { line: c.range.end.line, character: c.range.end.character }
           },
-          message: 'Unmatched @compiler_hint_end directive without preceding @compiler_hint_start',
+          message: c.text.includes('@compiler_hint_end') ? 'Unmatched @compiler_hint_end directive without preceding @compiler_hint_start' : `Unmatched compiler hint end directive '${info.tag || 'end'}' without preceding begin`,
           source: 'swirl'
         });
       } else {
-        hintStack.pop();
+        const open = hintStack.pop()!;
+        if (info.region !== undefined && open.info.region !== undefined && info.region !== open.info.region) {
+          diagnostics.push({
+            severity: DiagnosticSeverity.Warning,
+            range: {
+              start: { line: c.range.start.line, character: c.range.start.character },
+              end: { line: c.range.end.line, character: c.range.end.character }
+            },
+            message: `Mismatched compiler hint region: end specifies region ${info.region}, but open block was region ${open.info.region}`,
+            source: 'swirl'
+          });
+        } else if (info.tag && open.info.tag && info.tag !== open.info.tag) {
+          diagnostics.push({
+            severity: DiagnosticSeverity.Warning,
+            range: {
+              start: { line: c.range.start.line, character: c.range.start.character },
+              end: { line: c.range.end.line, character: c.range.end.character }
+            },
+            message: `Mismatched compiler hint phase: end specifies '${info.tag}', but open block was '${open.info.tag}'`,
+            source: 'swirl'
+          });
+        }
       }
     }
   }
@@ -260,10 +283,10 @@ export function analyzeSemantics(text: string): Diagnostic[] {
     diagnostics.push({
       severity: DiagnosticSeverity.Warning,
       range: {
-        start: { line: unclosed.range.start.line, character: unclosed.range.start.character },
-        end: { line: unclosed.range.end.line, character: unclosed.range.end.character }
+        start: { line: unclosed.comment.range.start.line, character: unclosed.comment.range.start.character },
+        end: { line: unclosed.comment.range.end.line, character: unclosed.comment.range.end.character }
       },
-      message: 'Unclosed @compiler_hint_start directive missing matching @compiler_hint_end',
+      message: unclosed.comment.text.includes('@compiler_hint_start') ? 'Unclosed @compiler_hint_start directive missing matching @compiler_hint_end' : `Unclosed compiler hint begin directive '${unclosed.info.tag || 'begin'}' missing matching end`,
       source: 'swirl'
     });
   }

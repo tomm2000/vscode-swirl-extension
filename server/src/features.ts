@@ -9,7 +9,15 @@ import {
   FoldingRangeKind
 } from 'vscode-languageserver/node';
 import { Lexer, Token, TokenKind } from './lexer';
-import { Parser, WorkflowNode, LocationNode, CommentNode, TraceNode, PredicateNode } from './parser';
+import {
+  Parser,
+  WorkflowNode,
+  LocationNode,
+  CommentNode,
+  TraceNode,
+  PredicateNode,
+  parseCompilerHint
+} from './parser';
 
 /**
  * Extracts document symbols for VS Code Outline pane and breadcrumb navigation.
@@ -39,23 +47,26 @@ export function getDocumentSymbols(text: string): DocumentSymbol[] {
       (c) =>
         c.range.start.line >= loc.range.start.line &&
         c.range.end.line <= loc.range.end.line &&
-        c.text.includes('@compiler_hint_start')
+        (c.hintInfo?.action === 'begin' || parseCompilerHint(c.text)?.action === 'begin')
     );
 
     for (const h of locHints) {
-      try {
-        const jsonStr = h.text.replace(/^\/\/\s*@compiler_hint_start\s*/, '');
-        const meta = JSON.parse(jsonStr);
-        locSymbol.children!.push({
-          name: `Region: ${meta.region || meta.kind || 'compiler_hint'}`,
-          detail: `phase: ${meta.phase || ''}${meta.method ? `, method: ${meta.method}` : ''}`,
-          kind: SymbolKind.Package,
-          range: toLspRange(h.range),
-          selectionRange: toLspRange(h.range)
-        });
-      } catch {
-        // Ignore unparseable hint JSON
-      }
+      const info = h.hintInfo || parseCompilerHint(h.text);
+      if (!info) continue;
+      const regionStr = info.region !== undefined ? `Region ${info.region}` : 'Region';
+      const phaseStr = info.tag || info.phase || 'compiler_hint';
+      const details: string[] = [];
+      if (info.phase) details.push(`phase: ${info.phase}`);
+      if (info.json.method) details.push(`method: ${info.json.method}`);
+      if (info.json.v !== undefined) details.push(`v: ${info.json.v}`);
+
+      locSymbol.children!.push({
+        name: `${phaseStr} (${regionStr})`,
+        detail: details.join(', '),
+        kind: SymbolKind.Package,
+        range: toLspRange(h.range),
+        selectionRange: toLspRange(h.range)
+      });
     }
 
     // Recursively collect predicates from location's trace
@@ -68,25 +79,28 @@ export function getDocumentSymbols(text: string): DocumentSymbol[] {
           const outFlow = p.flow.to.pairs.map((pr) => pr.first).join(', ');
           locSymbol.children!.push({
             name: `exec: ${p.step}`,
-            detail: `{${inFlow}} -> {${outFlow}}`,
+            detail: `{${inFlow}} -> {${outFlow}} @ {${p.mapping.locations.join(', ')}}`,
             kind: SymbolKind.Function,
             range: toLspRange(p.range),
-            selectionRange: toLspRange(p.range)
+            selectionRange: p.stepRange ? toLspRange(p.stepRange) : toLspRange(p.range)
           });
-        } else {
-          const detail =
-            p.kind === 'send'
-              ? `to ${p.dst.isSet ? `{${p.dst.locations.join(', ')}}` : p.dst.locations[0]}`
-              : p.kind === 'recv'
-              ? `from ${p.src}`
-              : `${p.src} -> {${p.dst.locations.join(', ')}}`;
-
+        } else if (p.kind === 'send' || p.kind === 'move') {
+          const dsts = p.dst.locations.join(', ');
           locSymbol.children!.push({
             name: `${p.kind}: ${p.data.name} -> ${p.port}`,
-            detail,
+            detail: `${p.src} -> {${dsts}}`,
             kind: SymbolKind.Event,
             range: toLspRange(p.range),
-            selectionRange: toLspRange(p.range)
+            selectionRange: p.portRange ? toLspRange(p.portRange) : toLspRange(p.range)
+          });
+        } else if (p.kind === 'recv') {
+          const dsts = p.dst.locations.join(', ');
+          locSymbol.children!.push({
+            name: `recv: ${p.data.name} -> ${p.port}`,
+            detail: `${p.src} -> {${dsts}}`,
+            kind: SymbolKind.Event,
+            range: toLspRange(p.range),
+            selectionRange: p.portRange ? toLspRange(p.portRange) : toLspRange(p.range)
           });
         }
       } else if (trace.kind === 'traceRepl') {
@@ -100,14 +114,6 @@ export function getDocumentSymbols(text: string): DocumentSymbol[] {
     }
 
     collectPredicates(loc.trace);
-
-    // Sort children chronologically by source appearance
-    locSymbol.children!.sort(
-      (a, b) =>
-        a.range.start.line - b.range.start.line ||
-        a.range.start.character - b.range.start.character
-    );
-
     symbols.push(locSymbol);
   }
 
@@ -115,45 +121,28 @@ export function getDocumentSymbols(text: string): DocumentSymbol[] {
 }
 
 /**
- * Finds the definition for the symbol at the given position (F12).
+ * Finds the definition of an identifier at cursor position.
+ * Supports:
+ * - Jumping from location references (in mapping, send/recv/move dst/src) to `<location>` definition
+ * - Jumping from predicate names to their first usage or step definition
  */
 export function getDefinition(text: string, uri: string, position: LspPosition): Definition | null {
+  const parser = new Parser(text);
+  const wf = parser.parseWorkflow();
+
   const token = findTokenAt(text, position);
   if (!token || token.kind !== TokenKind.Identifier) {
     return null;
   }
 
   const name = token.value;
-  const parser = new Parser(text);
-  const wf = parser.parseWorkflow();
 
-  // 1. Is it a location? Jump to <name
-  const locDef = wf.locations.find((l) => l.name === name);
-  if (locDef) {
+  // 1. Check if token matches a location definition <loc>
+  const targetLoc = wf.locations.find((l) => l.name === name);
+  if (targetLoc && targetLoc.nameRange) {
     return {
       uri,
-      range: toLspRange(locDef.range)
-    };
-  }
-
-  // 2. Is it a step name? Jump to exec(step, ...)
-  for (const loc of wf.locations) {
-    const stepPred = findStepInTrace(loc.trace, name);
-    if (stepPred) {
-      return {
-        uri,
-        range: toLspRange(stepPred.range)
-      };
-    }
-  }
-
-  // 3. Is it a data or port identifier? Jump to first declaration
-  const tokens = new Lexer(text).tokenize(false);
-  const firstOccur = tokens.find((t) => t.value === name);
-  if (firstOccur && (firstOccur.range.start.line !== token.range.start.line || firstOccur.range.start.character !== token.range.start.character)) {
-    return {
-      uri,
-      range: toLspRange(firstOccur.range)
+      range: toLspRange(targetLoc.nameRange)
     };
   }
 
@@ -161,34 +150,34 @@ export function getDefinition(text: string, uri: string, position: LspPosition):
 }
 
 /**
- * Finds all references to the symbol at the given position (Shift+F12).
+ * Finds all references to a location, port, or step identifier across the document.
  */
 export function getReferences(
   text: string,
   uri: string,
   position: LspPosition,
-  includeDeclaration = true
+  includeDeclaration: boolean = true
 ): LspLocation[] {
   const token = findTokenAt(text, position);
-  if (!token) {
+  if (!token || token.kind !== TokenKind.Identifier) {
     return [];
   }
 
   const name = token.value;
-  const tokens = new Lexer(text).tokenize(false);
-  const matches = tokens.filter((t) => t.value === name);
+  const lexer = new Lexer(text);
+  const allTokens = lexer.tokenize(true);
+  const references: LspLocation[] = [];
 
-  return matches
-    .filter((t) => {
-      if (!includeDeclaration && t.range.start.line === token.range.start.line && t.range.start.character === token.range.start.character) {
-        return false;
-      }
-      return true;
-    })
-    .map((t) => ({
-      uri,
-      range: toLspRange(t.range)
-    }));
+  for (const t of allTokens) {
+    if (t.kind === TokenKind.Identifier && t.value === name) {
+      references.push({
+        uri,
+        range: toLspRange(t.range)
+      });
+    }
+  }
+
+  return references;
 }
 
 /**
@@ -210,12 +199,15 @@ export function getFoldingRanges(text: string): FoldingRange[] {
     }
   }
 
-  // 2. Compiler hint regions: // @compiler_hint_start ... // @compiler_hint_end
+  // 2. Compiler hint regions: begin ... end
   const hintStarts: CommentNode[] = [];
   for (const comment of parser.comments) {
-    if (comment.text.includes('@compiler_hint_start')) {
+    const info = comment.hintInfo || parseCompilerHint(comment.text);
+    if (!info) continue;
+
+    if (info.action === 'begin') {
       hintStarts.push(comment);
-    } else if (comment.text.includes('@compiler_hint_end') && hintStarts.length > 0) {
+    } else if (info.action === 'end' && hintStarts.length > 0) {
       const start = hintStarts.pop()!;
       foldingRanges.push({
         startLine: start.range.start.line,
@@ -238,7 +230,7 @@ export function getFoldingRanges(text: string): FoldingRange[] {
       if (t.range.start.line > open.range.start.line) {
         foldingRanges.push({
           startLine: open.range.start.line,
-          endLine: t.range.end.line
+          endLine: t.range.start.line
         });
       }
     } else if (t.kind === TokenKind.OpenBrace) {
@@ -248,7 +240,7 @@ export function getFoldingRanges(text: string): FoldingRange[] {
       if (t.range.start.line > open.range.start.line) {
         foldingRanges.push({
           startLine: open.range.start.line,
-          endLine: t.range.end.line
+          endLine: t.range.start.line
         });
       }
     } else if (t.kind === TokenKind.BlockComment) {
@@ -265,20 +257,14 @@ export function getFoldingRanges(text: string): FoldingRange[] {
   return foldingRanges;
 }
 
-// Helpers
-
-function toLspRange(r: { start: { line: number; character: number }; end: { line: number; character: number } }): LspRange {
-  return {
-    start: { line: r.start.line, character: r.start.character },
-    end: { line: r.end.line, character: r.end.character }
-  };
-}
-
 function findTokenAt(text: string, position: LspPosition): Token | null {
-  const tokens = new Lexer(text).tokenize(false);
+  const lexer = new Lexer(text);
+  const tokens = lexer.tokenize(true);
+
   for (const t of tokens) {
     if (
-      t.range.start.line === position.line &&
+      position.line >= t.range.start.line &&
+      position.line <= t.range.end.line &&
       position.character >= t.range.start.character &&
       position.character < t.range.end.character
     ) {
@@ -286,12 +272,12 @@ function findTokenAt(text: string, position: LspPosition): Token | null {
     }
   }
 
-  // Trailing edge match for identifiers
   for (const t of tokens) {
     if (
-      t.range.start.line === position.line &&
+      position.line >= t.range.start.line &&
+      position.line <= t.range.end.line &&
       position.character === t.range.end.character &&
-      t.kind === TokenKind.Identifier
+      t.kind !== TokenKind.Whitespace
     ) {
       return t;
     }
@@ -300,18 +286,9 @@ function findTokenAt(text: string, position: LspPosition): Token | null {
   return null;
 }
 
-function findStepInTrace(trace: TraceNode | undefined, stepName: string): PredicateNode | null {
-  if (!trace) return null;
-  if (trace.kind === 'tracePred') {
-    if (trace.pred.kind === 'exec' && trace.pred.step === stepName) {
-      return trace.pred;
-    }
-    return null;
-  }
-  if (trace.kind === 'traceRepl') return findStepInTrace(trace.subTrace, stepName);
-  if (trace.kind === 'traceParen') return findStepInTrace(trace.inner, stepName);
-  if (trace.kind === 'traceOp') {
-    return findStepInTrace(trace.left, stepName) || findStepInTrace(trace.right, stepName);
-  }
-  return null;
+function toLspRange(r: { start: { line: number; character: number }; end: { line: number; character: number } }): LspRange {
+  return {
+    start: { line: r.start.line, character: r.start.character },
+    end: { line: r.end.line, character: r.end.character }
+  };
 }
