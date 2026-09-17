@@ -39,6 +39,7 @@ export type PredicateNode =
   | {
       kind: 'exec';
       step: string;
+      stepRange?: Range;
       flow: FlowNode;
       mapping: LocationSetNode;
       range: Range;
@@ -47,7 +48,9 @@ export type PredicateNode =
       kind: 'send' | 'recv' | 'move';
       data: DataRefNode;
       port: string;
+      portRange?: Range;
       src: string;
+      srcRange?: Range;
       dst: LocationSetNode;
       range: Range;
     };
@@ -69,6 +72,7 @@ export type TraceNode =
 export interface LocationNode {
   kind: 'location';
   name: string;
+  nameRange?: Range;
   dataset: DataSetNode;
   trace: TraceNode;
   range: Range;
@@ -227,6 +231,7 @@ export class Parser {
     return {
       kind: 'location',
       name: nameToken.value,
+      nameRange: nameToken.range,
       dataset,
       trace,
       range: { start: ltToken.range.start, end: gtToken.range.end }
@@ -366,7 +371,7 @@ export class Parser {
     this.consume(TokenKind.OpenParen, `Expected '(' after '${token.value}'`);
 
     if (token.kind === TokenKind.Exec) {
-      const step = this.consume(TokenKind.Identifier, 'Expected step identifier for exec').value;
+      const stepToken = this.consume(TokenKind.Identifier, 'Expected step identifier for exec');
       this.consume(TokenKind.Comma, "Expected ',' after step identifier");
       const flow = this.parseFlow();
       this.consume(TokenKind.Comma, "Expected ',' after flow in exec");
@@ -374,7 +379,8 @@ export class Parser {
       const closeParen = this.consume(TokenKind.CloseParen, "Expected ')' to close exec predicate");
       return {
         kind: 'exec',
-        step,
+        step: stepToken.value,
+        stepRange: stepToken.range,
         flow,
         mapping,
         range: { start: startPos, end: closeParen.range.end }
@@ -385,9 +391,9 @@ export class Parser {
     const predKind = token.kind as 'send' | 'recv' | 'move';
     const data = this.parseDataRef();
     this.consume(TokenKind.Arrow, "Expected '->' between data and port");
-    const port = this.consume(TokenKind.Identifier, 'Expected port identifier').value;
+    const portToken = this.consume(TokenKind.Identifier, 'Expected port identifier');
     this.consume(TokenKind.Comma, "Expected ',' after port");
-    const src = this.consume(TokenKind.Identifier, 'Expected source location identifier').value;
+    const srcToken = this.consume(TokenKind.Identifier, 'Expected source location identifier');
     this.consume(TokenKind.Comma, "Expected ',' after source location");
     const dst = this.parseLocationSet();
     const closeParen = this.consume(TokenKind.CloseParen, `Expected ')' to close ${predKind} predicate`);
@@ -395,8 +401,10 @@ export class Parser {
     return {
       kind: predKind,
       data,
-      port,
-      src,
+      port: portToken.value,
+      portRange: portToken.range,
+      src: srcToken.value,
+      srcRange: srcToken.range,
       dst,
       range: { start: startPos, end: closeParen.range.end }
     };
@@ -437,9 +445,6 @@ export class Parser {
     let expr = this.parseSequence();
 
     while (this.check(TokenKind.Pipe)) {
-      // Avoid consuming pipe if it belongs to outer location separator (at depth 0 when followed by '<')
-      // In ANTLR, workflow has location (PAR location)*. Location ends with '>'.
-      // Inside trace, '|' is a trace operator.
       this.advance();
       const right = this.parseSequence();
       expr = {

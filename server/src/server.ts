@@ -23,7 +23,9 @@ import {
   ReferenceParams,
   Location as LspLocation,
   FoldingRangeParams,
-  FoldingRange
+  FoldingRange,
+  InlayHintParams,
+  InlayHint
 } from 'vscode-languageserver/node';
 
 import { TextDocument } from 'vscode-languageserver-textdocument';
@@ -37,6 +39,7 @@ import {
 } from './features';
 import { analyzeSemantics } from './analyzer';
 import { getHover } from './hover';
+import { getInlayHints, InlayHintSettings } from './inlay-hints';
 
 const connection = createConnection(ProposedFeatures.all);
 const documents: TextDocuments<TextDocument> = new TextDocuments(TextDocument);
@@ -55,7 +58,8 @@ connection.onInitialize((_params: InitializeParams): InitializeResult => {
       documentSymbolProvider: true,
       definitionProvider: true,
       referencesProvider: true,
-      foldingRangeProvider: true
+      foldingRangeProvider: true,
+      inlayHintProvider: true
     }
   };
 });
@@ -155,6 +159,31 @@ connection.onHover((params: TextDocumentPositionParams): Hover | null => {
   const document = documents.get(params.textDocument.uri);
   if (!document) return null;
   return getHover(document.getText(), params.position);
+});
+
+// Inlay Hints Provider
+connection.languages.inlayHint.on(async (params: InlayHintParams): Promise<InlayHint[]> => {
+  const document = documents.get(params.textDocument.uri);
+  if (!document) return [];
+
+  let settings: InlayHintSettings | undefined;
+  try {
+    const config = await connection.workspace.getConfiguration({
+      scopeUri: params.textDocument.uri,
+      section: 'swirl.inlayHints'
+    });
+    if (config) {
+      settings = {
+        enableParameterNames: config.parameterNames?.enabled ?? true,
+        execFlowStyle: config.execFlowStyle ?? 'inOut',
+        enableLocationTags: config.locationTags?.enabled ?? false
+      };
+    }
+  } catch {
+    // Default fallback
+  }
+
+  return getInlayHints(document.getText(), params.range, settings);
 });
 
 // Completion Provider
