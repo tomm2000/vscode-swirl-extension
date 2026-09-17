@@ -32,7 +32,7 @@
     "compiler-hints": {
       "patterns": [
         {
-          "match": "(\\/\\/\\s*(?:\\[compiler\\](?:\\([^)]*\\))?|@compiler))\\s+(begin|end)(?:\\s+([a-zA-Z0-9_.-]+))?(?:\\s+({.*}))?$",
+          "match": "(\\/\\/\\s*(?:\\[compiler\\](?:\\([^)]*\\))?|@compiler))\\s+(begin|end)(?:\\s+([a-zA-Z0-9_.-]+))?(?:\\s+(\\d+|[a-zA-Z0-9_:-]+))?(?:\\s+({.*}))?\\s*$",
           "captures": {
             "1": {
               "name": "keyword.control.directive.swirl"
@@ -44,6 +44,9 @@
               "name": "entity.name.tag.swirl"
             },
             "4": {
+              "name": "constant.numeric.region.swirl"
+            },
+            "5": {
               "name": "meta.embedded.json.swirl string.unquoted.swirl"
             }
           }

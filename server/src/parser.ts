@@ -103,25 +103,33 @@ export function parseCompilerHint(text: string): CompilerHintInfo | null {
   //    // [compiler] begin/end ...
   //    // @compiler begin/end ...
   const newMatch = trimmed.match(
-    /^\/\/\s*(?:\[compiler\](?:\([^)]*\))?|@compiler)\s+(begin|end)(?:\s+([a-zA-Z0-9_.-]+))?(?:\s+({.*}))?$/
+    /^\/\/\s*(?:\[compiler\](?:\([^)]*\))?|@compiler)\s+(begin|end)(?:\s+([a-zA-Z0-9_.-]+))?(?:\s+(\d+|[a-zA-Z0-9_:-]+))?(?:\s+({.*}))?\s*$/
   );
   if (newMatch) {
     let json: Record<string, any> = {};
-    if (newMatch[3]) {
+    if (newMatch[4]) {
       try {
-        json = JSON.parse(newMatch[3]);
+        json = JSON.parse(newMatch[4]);
       } catch {
         // ignore malformed JSON
       }
     }
-    const tag = newMatch[2];
-    const region = json.region !== undefined ? json.region : undefined;
+    let tag: string | undefined = newMatch[2];
+    let rawRegion: string | undefined = newMatch[3];
+    if (tag !== undefined && /^\d+$/.test(tag) && rawRegion === undefined) {
+      rawRegion = tag;
+      tag = undefined;
+    }
+    let region: string | number | undefined = json.region !== undefined ? json.region : undefined;
+    if (region === undefined && rawRegion !== undefined) {
+      region = /^\d+$/.test(rawRegion) ? parseInt(rawRegion, 10) : rawRegion;
+    }
     const phase = tag || json.phase;
     return {
       action: newMatch[1] as 'begin' | 'end',
       tag,
       json,
-      rawJson: newMatch[3],
+      rawJson: newMatch[4],
       region,
       phase,
       directive: newMatch[1]
