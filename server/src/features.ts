@@ -86,8 +86,9 @@ export function getDocumentSymbols(text: string): DocumentSymbol[] {
           });
         } else if (p.kind === 'send' || p.kind === 'move') {
           const dsts = p.dst.locations.join(', ');
+          const dataDisplay = p.data.index ? `${p.data.name}[${p.data.index}]` : p.data.name;
           locSymbol.children!.push({
-            name: `${p.kind}: ${p.data.name} -> ${p.port}`,
+            name: `${p.kind}: ${dataDisplay} -> ${p.port}`,
             detail: `${p.src} -> {${dsts}}`,
             kind: SymbolKind.Event,
             range: toLspRange(p.range),
@@ -95,8 +96,9 @@ export function getDocumentSymbols(text: string): DocumentSymbol[] {
           });
         } else if (p.kind === 'recv') {
           const dsts = p.dst.locations.join(', ');
+          const dataDisplay = p.data.index ? `${p.data.name}[${p.data.index}]` : p.data.name;
           locSymbol.children!.push({
-            name: `recv: ${p.data.name} -> ${p.port}`,
+            name: `recv: ${dataDisplay} -> ${p.port}`,
             detail: `${p.src} -> {${dsts}}`,
             kind: SymbolKind.Event,
             range: toLspRange(p.range),

@@ -320,9 +320,7 @@ export class SwirlFormatter {
         if (isStartOfLineInSource) {
           if (currentLine !== '') pushLine();
           emit('+');
-          if (next && next.kind === TokenKind.OpenBracket) {
-            // +[guard]
-          } else if (next && next.range.start.line > t.range.end.line) {
+          if (next && next.range.start.line > t.range.end.line) {
             pushLine();
           } else {
             emit(' ');
@@ -332,10 +330,7 @@ export class SwirlFormatter {
             emit(' +');
             pushLine();
           } else {
-            emit(' +');
-            if (next && next.kind !== TokenKind.OpenBracket) {
-              emit(' ');
-            }
+            emit(' + ');
           }
         }
         continue;

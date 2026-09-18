@@ -11,7 +11,9 @@ export interface DataRefNode {
 export interface DataPairNode {
   kind: 'dataPair';
   first: string;
+  firstRange?: Range;
   second: string;
+  secondRange?: Range;
   range: Range;
 }
 
@@ -343,17 +345,47 @@ export class Parser {
     };
   }
 
+  private parseDataPairElement(): { value: string; range: Range } {
+    const startToken = this.peek();
+    if (this.match(TokenKind.Zero)) {
+      return { value: '0', range: startToken.range };
+    }
+    if (this.match(TokenKind.EofKeyword)) {
+      return { value: 'eof', range: startToken.range };
+    }
+    if (this.match(TokenKind.Identifier)) {
+      let name = this.previous().value;
+      let endRange = this.previous().range;
+      if (this.match(TokenKind.OpenBracket)) {
+        const idxToken = this.consume(TokenKind.Identifier, 'Expected index identifier');
+        const closeBracket = this.consume(TokenKind.CloseBracket, "Expected ']' after index");
+        name = `${name}[${idxToken.value}]`;
+        endRange = closeBracket.range;
+      }
+      return {
+        value: name,
+        range: { start: startToken.range.start, end: endRange.end }
+      };
+    }
+
+    this.error(startToken.range, `Expected identifier, '0', or 'eof' in data pair, got '${startToken.value}'`);
+    this.advance();
+    return { value: startToken.value, range: startToken.range };
+  }
+
   private parseDataPair(): DataPairNode {
     const openParen = this.consume(TokenKind.OpenParen, "Expected '(' to start data pair");
-    const first = this.consume(TokenKind.Identifier, 'Expected identifier in data pair').value;
+    const firstElem = this.parseDataPairElement();
     this.consume(TokenKind.Comma, "Expected ',' between data pair elements");
-    const second = this.consume(TokenKind.Identifier, 'Expected identifier in data pair').value;
+    const secondElem = this.parseDataPairElement();
     const closeParen = this.consume(TokenKind.CloseParen, "Expected ')' to close data pair");
 
     return {
       kind: 'dataPair',
-      first,
-      second,
+      first: firstElem.value,
+      firstRange: firstElem.range,
+      second: secondElem.value,
+      secondRange: secondElem.range,
       range: { start: openParen.range.start, end: closeParen.range.end }
     };
   }
@@ -474,6 +506,14 @@ export class Parser {
     const data = this.parseDataRef();
     this.consume(TokenKind.Arrow, "Expected '->' between data and port");
     const portToken = this.consume(TokenKind.Identifier, 'Expected port identifier');
+    let port = portToken.value;
+    let portRange = portToken.range;
+    if (this.match(TokenKind.OpenBracket)) {
+      const idxToken = this.consume(TokenKind.Identifier, 'Expected index identifier');
+      const closeBracket = this.consume(TokenKind.CloseBracket, "Expected ']' after index");
+      port = `${port}[${idxToken.value}]`;
+      portRange = { start: portRange.start, end: closeBracket.range.end };
+    }
     this.consume(TokenKind.Comma, "Expected ',' after port");
     const srcToken = this.consume(TokenKind.Identifier, 'Expected source location identifier');
     this.consume(TokenKind.Comma, "Expected ',' after source location");
@@ -483,8 +523,8 @@ export class Parser {
     return {
       kind: predKind,
       data,
-      port: portToken.value,
-      portRange: portToken.range,
+      port,
+      portRange,
       src: srcToken.value,
       srcRange: srcToken.range,
       dst,
@@ -501,18 +541,10 @@ export class Parser {
     let expr = this.parseParallel();
 
     while (this.match(TokenKind.Plus)) {
-      const opToken = this.previous();
-      let guard: string | undefined;
-      if (this.match(TokenKind.OpenBracket)) {
-        const idToken = this.consume(TokenKind.Identifier, 'Expected choice guard identifier');
-        guard = idToken.value;
-        this.consume(TokenKind.CloseBracket, "Expected ']' after choice guard");
-      }
       const right = this.parseParallel();
       expr = {
         kind: 'traceOp',
         op: '+',
-        guard,
         left: expr,
         right,
         range: { start: expr.range.start, end: right.range.end }
