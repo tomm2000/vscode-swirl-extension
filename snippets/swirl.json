@@ -36,6 +36,27 @@
     ],
     "description": "Swirl move predicate"
   },
+  "Move Tuple Predicate": {
+    "prefix": "movetuple",
+    "body": [
+      "move((${1:id}, ${2:payload}) -> ${3:port}, ${4:src}, ${5:dst})"
+    ],
+    "description": "Swirl move predicate with data tuple"
+  },
+  "Recv Tuple Predicate": {
+    "prefix": "recvtuple",
+    "body": [
+      "recv((${1:id}, ${2:payload}) -> ${3:port}, ${4:src}, ${5:dst})"
+    ],
+    "description": "Swirl recv predicate with data tuple"
+  },
+  "Data Tuple": {
+    "prefix": "tuple",
+    "body": [
+      "(${1:id}, ${2:payload})"
+    ],
+    "description": "Swirl data tuple"
+  },
   "Replication": {
     "prefix": "repl",
     "body": [

@@ -5,6 +5,8 @@ export interface DataRefNode {
   kind: 'dataRef';
   name: string;
   index?: string;
+  isTuple?: boolean;
+  elements?: DataRefNode[];
   range: Range;
 }
 
@@ -353,6 +355,20 @@ export class Parser {
     if (this.match(TokenKind.EofKeyword)) {
       return { value: 'eof', range: startToken.range };
     }
+    if (this.match(TokenKind.OpenParen)) {
+      const openParen = this.previous();
+      const elements: string[] = [];
+      if (!this.check(TokenKind.CloseParen)) {
+        do {
+          elements.push(this.parseDataPairElement().value);
+        } while (this.match(TokenKind.Comma));
+      }
+      const closeParen = this.consume(TokenKind.CloseParen, "Expected ')' to close data tuple in pair");
+      return {
+        value: `(${elements.join(', ')})`,
+        range: { start: openParen.range.start, end: closeParen.range.end }
+      };
+    }
     if (this.match(TokenKind.Identifier)) {
       let name = this.previous().value;
       let endRange = this.previous().range;
@@ -368,7 +384,7 @@ export class Parser {
       };
     }
 
-    this.error(startToken.range, `Expected identifier, '0', or 'eof' in data pair, got '${startToken.value}'`);
+    this.error(startToken.range, `Expected identifier, tuple, '0', or 'eof' in data pair, got '${startToken.value}'`);
     this.advance();
     return { value: startToken.value, range: startToken.range };
   }
@@ -441,6 +457,24 @@ export class Parser {
         range: startToken.range
       };
     }
+    if (this.match(TokenKind.OpenParen)) {
+      const openParen = this.previous();
+      const elements: DataRefNode[] = [];
+      if (!this.check(TokenKind.CloseParen)) {
+        do {
+          elements.push(this.parseDataRef());
+        } while (this.match(TokenKind.Comma));
+      }
+      const closeParen = this.consume(TokenKind.CloseParen, "Expected ')' to close data tuple");
+      const name = `(${elements.map((e) => (e.index ? `${e.name}[${e.index}]` : e.name)).join(', ')})`;
+      return {
+        kind: 'dataRef',
+        name,
+        isTuple: true,
+        elements,
+        range: { start: openParen.range.start, end: closeParen.range.end }
+      };
+    }
     if (this.match(TokenKind.Identifier)) {
       const name = this.previous().value;
       let index: string | undefined;
@@ -459,7 +493,7 @@ export class Parser {
       };
     }
 
-    this.error(startToken.range, `Expected data identifier, '0', or 'eof', got '${startToken.value}'`);
+    this.error(startToken.range, `Expected data identifier, tuple, '0', or 'eof', got '${startToken.value}'`);
     return {
       kind: 'dataRef',
       name: startToken.value,

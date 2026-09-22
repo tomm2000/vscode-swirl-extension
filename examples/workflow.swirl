@@ -1,0 +1,316 @@
+<l0, {(p_zip_files, d_zip_files)},
+  // @compiler begin scatter.dispatch 0
+  exec(_s_scatter_0, {(p_zip_files, d_zip_files)} -> {(p_task_0, (task_id_0, task_payload_0))}, {l0})
+  .
+  (
+    !(
+      (
+        move((task_id_0, task_payload_0) -> p_task_0, l0, {l1, l2})
+      )
+      +
+      (
+        send(eof -> p_task_0, l0, l1)
+        |
+        send(eof -> p_task_0, l0, l2)
+      )
+    )
+  )
+  // @compiler end scatter.dispatch 0
+  .
+  // @compiler begin scatter.gather 0
+  (
+    !(
+      (
+        recv(summarize_zip_summary[task_id_0] -> p_summarize_zip_summary, l1, l0)
+      )
+      +
+      (
+        recv(eof -> p_summarize_zip_summary, l1, l0)
+      )
+    )
+    |
+    !(
+      (
+        recv(summarize_zip_summary[task_id_0] -> p_summarize_zip_summary, l2, l0)
+      )
+      +
+      (
+        recv(eof -> p_summarize_zip_summary, l2, l0)
+      )
+    )
+  )
+  .
+  exec(_s_gather_0, {(p_summarize_zip_summary, summarize_zip_summary[task_id_0])} -> {(p_gather_data_0_0, d_zip_summary)}, {l0})
+  // @compiler end scatter.gather 0
+  .
+  exec(s_final_summary, {(p_gather_data_0_0, d_zip_summary)} -> {(p_final_summary_report, d_final_summary_report)}, {l0})
+> |
+
+
+<l1, {},
+  // @compiler begin scatter.worker 0
+  !(
+    (
+      recv((task_id_0, task_payload_0) -> p_task_0, l0, l1)
+      .
+      exec(_s_open_0, {(p_task_0, task_payload_0)} -> {(p_open_data_0_0, process_all_zips_zip_file[task_id_0])}, {l1})
+      .
+      exec(s_unzip_step, {(p_open_data_0_0, process_all_zips_zip_file[task_id_0])} -> {(p_unzip_step_extracted_files, unzip_step_extracted_files[task_id_0])}, {l1})
+      .
+      // @compiler begin scatter.dispatch 1
+      exec(_s_scatter_1, {(p_unzip_step_extracted_files, unzip_step_extracted_files[task_id_0])} -> {(p_task_1, (task_id_1, task_payload_1))}, {l1})
+      .
+      !(
+        (
+          move((task_id_1, task_payload_1) -> p_task_1, l1, {l3, l4, l5})
+        )
+        +
+        (
+          send(eof -> p_task_1, l1, l3)
+          |
+          send(eof -> p_task_1, l1, l4)
+          |
+          send(eof -> p_task_1, l1, l5)
+        )
+      )
+      // @compiler end scatter.dispatch 1
+      .
+      // @compiler begin scatter.gather 1
+      (
+        !(
+          recv(inspect_step_info[task_id_1] -> p_inspect_step_info, l3, l1)
+          +
+          recv(eof -> p_inspect_step_info, l3, l1)
+        )
+        |
+        !(
+          recv(inspect_step_info[task_id_1] -> p_inspect_step_info, l4, l1)
+          +
+          recv(eof -> p_inspect_step_info, l4, l1)
+        )
+        |
+        !(
+          recv(inspect_step_info[task_id_1] -> p_inspect_step_info, l5, l1)
+          +
+          recv(eof -> p_inspect_step_info, l5, l1)
+        )
+      )
+      .
+      exec(_s_gather_1, {(p_inspect_step_info, inspect_step_info[task_id_1])} -> {(p_inspect_step_info, inspect_step_info[task_id_0])}, {l1})
+      // @compiler end scatter.gather 1
+      .
+      exec(s_summarize, {(p_open_data_0_0, process_all_zips_zip_file[task_id_0]), (p_inspect_step_info, inspect_step_info[task_id_1])} -> {(p_summarize_zip_summary, summarize_zip_summary[task_id_0])}, {l1})
+      .
+      send(summarize_zip_summary[task_id_0] -> p_summarize_zip_summary, l1, l0)
+    )
+    +
+    (
+      recv(eof -> p_task_0, l0, l1)
+      .
+      send(eof -> p_task_1, l1, l3)
+      .
+      send(eof -> p_task_1, l1, l4)
+      .
+      send(eof -> p_task_1, l1, l5)
+      .
+      send(eof -> p_summarize_zip_summary, l1, l0)
+    )
+  )
+  // @compiler end scatter.worker 0
+> |
+
+
+<l2, {},
+  // @compiler begin scatter.worker 0
+  !(
+    (
+      recv((task_id_0, task_payload_0) -> p_task_0, l0, l2)
+      .
+      exec(_s_open_0, {(p_task_0, task_payload_0)} -> {(p_open_data_0_0, process_all_zips_zip_file[task_id_0])}, {l2})
+      .
+      exec(s_unzip_step, {(p_open_data_0_0, process_all_zips_zip_file[task_id_0])} -> {(p_unzip_step_extracted_files, unzip_step_extracted_files[task_id_0])}, {l2})
+      .
+      // @compiler begin scatter.dispatch 1
+      exec(_s_scatter_1, {(p_unzip_step_extracted_files, unzip_step_extracted_files[task_id_0])} -> {(p_task_1, (task_id_1, task_payload_1))}, {l2})
+      .
+      !(
+        (
+          move((task_id_1, task_payload_1) -> p_task_1, l2, {l3, l4, l5})
+        )
+        +
+        (
+          send(eof -> p_task_1, l2, l3)
+          |
+          send(eof -> p_task_1, l2, l4)
+          |
+          send(eof -> p_task_1, l2, l5)
+        )
+      )
+      // @compiler end scatter.dispatch 1
+      .
+      // @compiler begin scatter.gather 1
+      (
+        !(
+          recv(inspect_step_info[task_id_1] -> p_inspect_step_info, l3, l2)
+          +
+          recv(eof -> p_inspect_step_info, l3, l2)
+        )
+        |
+        !(
+          recv(inspect_step_info[task_id_1] -> p_inspect_step_info, l4, l2)
+          +
+          recv(eof -> p_inspect_step_info, l4, l2)
+        )
+        |
+        !(
+          recv(inspect_step_info[task_id_1] -> p_inspect_step_info, l5, l2)
+          +
+          recv(eof -> p_inspect_step_info, l5, l2)
+        )
+      )
+      .
+      exec(_s_gather_1, {(p_inspect_step_info, inspect_step_info[task_id_1])} -> {(p_inspect_step_info, inspect_step_info[task_id_0])}, {l2})
+      // @compiler end scatter.gather 1
+      .
+      exec(s_summarize, {(p_open_data_0_0, process_all_zips_zip_file[task_id_0]), (p_inspect_step_info, inspect_step_info[task_id_1])} -> {(p_summarize_zip_summary, summarize_zip_summary[task_id_0])}, {l2})
+      .
+      send(summarize_zip_summary[task_id_0] -> p_summarize_zip_summary, l2, l0)
+    )
+    +
+    (
+      recv(eof -> p_task_0, l0, l2)
+      .
+      send(eof -> p_task_1, l2, l3)
+      .
+      send(eof -> p_task_1, l2, l4)
+      .
+      send(eof -> p_task_1, l2, l5)
+      .
+      send(eof -> p_summarize_zip_summary, l2, l0)
+    )
+  )
+  // @compiler end scatter.worker 0
+> |
+
+
+<l3, {},
+  // @compiler begin scatter.worker 1
+  !(
+    (
+      recv((task_id_1, task_payload_1) -> p_task_1, l1, l3)
+      .
+      exec(_s_open_1, {(p_task_1, task_payload_1)} -> {(p_open_data_0_1, inspect_step_target_file[task_id_1])}, {l3})
+      .
+      exec(s_inspect_step, {(p_open_data_0_1, inspect_step_target_file[task_id_1])} -> {(p_inspect_step_info, inspect_step_info[task_id_1])}, {l3})
+      .
+      send(inspect_step_info[task_id_1] -> p_inspect_step_info, l3, l1)
+    )
+    +
+    (
+      recv(eof -> p_task_1, l1, l3)
+      .
+      send(eof -> p_inspect_step_info, l3, l1)
+    )
+  )
+  |
+  !(
+    (
+      recv((task_id_1, task_payload_1) -> p_task_1, l2, l3)
+      .
+      exec(_s_open_1, {(p_task_1, task_payload_1)} -> {(p_open_data_0_1, inspect_step_target_file[task_id_1])}, {l3})
+      .
+      exec(s_inspect_step, {(p_open_data_0_1, inspect_step_target_file[task_id_1])} -> {(p_inspect_step_info, inspect_step_info[task_id_1])}, {l3})
+      .
+      send(inspect_step_info[task_id_1] -> p_inspect_step_info, l3, l2)
+    )
+    +
+    (
+      recv(eof -> p_task_1, l2, l3)
+      .
+      send(eof -> p_inspect_step_info, l3, l2)
+    )
+  )
+  // @compiler end scatter.worker 1
+> |
+
+
+<l4, {},
+  // @compiler begin scatter.worker 1
+  !(
+    (
+      recv((task_id_1, task_payload_1) -> p_task_1, l1, l4)
+      .
+      exec(_s_open_1, {(p_task_1, task_payload_1)} -> {(p_open_data_0_1, inspect_step_target_file[task_id_1])}, {l4})
+      .
+      exec(s_inspect_step, {(p_open_data_0_1, inspect_step_target_file[task_id_1])} -> {(p_inspect_step_info, inspect_step_info[task_id_1])}, {l4})
+      .
+      send(inspect_step_info[task_id_1] -> p_inspect_step_info, l4, l1)
+    )
+    +
+    (
+      recv(eof -> p_task_1, l1, l4)
+      .
+      send(eof -> p_inspect_step_info, l4, l1)
+    )
+  )
+  |
+  !(
+    (
+      recv((task_id_1, task_payload_1) -> p_task_1, l2, l4)
+      .
+      exec(_s_open_1, {(p_task_1, task_payload_1)} -> {(p_open_data_0_1, inspect_step_target_file[task_id_1])}, {l4})
+      .
+      exec(s_inspect_step, {(p_open_data_0_1, inspect_step_target_file[task_id_1])} -> {(p_inspect_step_info, inspect_step_info[task_id_1])}, {l4})
+      .
+      send(inspect_step_info[task_id_1] -> p_inspect_step_info, l4, l2)
+    )
+    +
+    (
+      recv(eof -> p_task_1, l2, l4)
+      .
+      send(eof -> p_inspect_step_info, l4, l2)
+    )
+  )
+  // @compiler end scatter.worker 1
+> |
+
+
+<l5, {},
+  // @compiler begin scatter.worker 1
+  !(
+    (
+      recv((task_id_1, task_payload_1) -> p_task_1, l1, l5)
+      .
+      exec(_s_open_1, {(p_task_1, task_payload_1)} -> {(p_open_data_0_1, inspect_step_target_file[task_id_1])}, {l5})
+      .
+      exec(s_inspect_step, {(p_open_data_0_1, inspect_step_target_file[task_id_1])} -> {(p_inspect_step_info, inspect_step_info[task_id_1])}, {l5})
+      .
+      send(inspect_step_info[task_id_1] -> p_inspect_step_info, l5, l1)
+    )
+    +
+    (
+      recv(eof -> p_task_1, l1, l5)
+      .
+      send(eof -> p_inspect_step_info, l5, l1)
+    )
+  )
+  |
+  !(
+    (
+      recv((task_id_1, task_payload_1) -> p_task_1, l2, l5)
+      .
+      exec(_s_open_1, {(p_task_1, task_payload_1)} -> {(p_open_data_0_1, inspect_step_target_file[task_id_1])}, {l5})
+      .
+      exec(s_inspect_step, {(p_open_data_0_1, inspect_step_target_file[task_id_1])} -> {(p_inspect_step_info, inspect_step_info[task_id_1])}, {l5})
+      .
+      send(inspect_step_info[task_id_1] -> p_inspect_step_info, l5, l2)
+    )
+    +
+    (
+      recv(eof -> p_task_1, l2, l5)
+      .
+      send(eof -> p_inspect_step_info, l5, l2)
+    )
+  )
+  // @compiler end scatter.worker 1
+>
