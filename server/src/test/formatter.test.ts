@@ -153,6 +153,50 @@ function runTests() {
     console.log('✓ Test 6: Fallback formatter on malformed input passed');
   }
 
+  // Test 7: Full expansion of compact traces (scatter/gather workflow snippet)
+  {
+    const compactInput = `<l0, {(p_batches, d_batches)},
+  (
+    // [compiler](compiler) begin scatter.worker 0
+    !(
+      (
+        recv((task_id_0, task_payload_0) -> p_task_0, l0, l0) .exec(_s_open_0, {(p_task_0, task_payload_0)} -> {(p_open_data_0_0, process_batch_batch[task_id_0])}, {l0}) .  // [compiler](compiler) begin scatter.dispatch 1
+        exec(_s_scatter_1, {(p_open_data_0_0, process_batch_batch[task_id_0])} -> {(p_task_1, (task_id_1, task_payload_1))}, {l0}) .
+        !((move((task_id_1, task_payload_1) -> p_task_1, l0, {l1})) + (send(eof -> p_task_1, l0, l1)))
+        // [compiler](compiler) end scatter.dispatch 1
+        .
+        // [compiler](compiler) begin scatter.gather 1
+        (!(recv(echo_item_output[task_id_1] -> p_echo_item_output, l1, l0) + recv(eof -> p_echo_item_output, l1, l0))) .
+        exec(_s_gather_1, {(p_echo_item_output, echo_item_output[task_id_1])} -> {(p_echo_item_output, echo_item_output[task_id_0])}, {l0})
+        // [compiler](compiler) end scatter.gather 1
+        .
+        send(echo_item_output[task_id_0] -> p_echo_item_output, l0, l0)
+      )
+      +
+      (recv(eof -> p_task_0, l0, l0) .send(eof -> p_echo_item_output, l0, l0))
+    )
+    // [compiler](compiler) end scatter.worker 0
+  )
+>`;
+
+    const formatted = formatter.format(compactInput);
+
+    // Verify dot expansion
+    assert(formatted.includes('\n        .\n'), 'Sequential dot should be on its own line');
+    // Verify choice expansion
+    assert(formatted.includes('\n      +\n'), 'Choice plus should be on its own line');
+    // Verify replication expansion
+    assert(formatted.includes('!(\n'), 'Replication should open on its own line');
+
+    const parser = new Parser(formatted);
+    parser.parseWorkflow();
+    assert.strictEqual(parser.diagnostics.length, 0, 'Formatted compact trace produced diagnostics');
+
+    const formattedAgain = formatter.format(formatted);
+    assert.strictEqual(formatted, formattedAgain, 'Formatting compact trace is not idempotent');
+    console.log('✓ Test 7: Full expansion of compact traces passed');
+  }
+
   console.log('\nAll tests passed successfully!');
 }
 

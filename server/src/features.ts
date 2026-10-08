@@ -16,6 +16,7 @@ import {
   CommentNode,
   TraceNode,
   PredicateNode,
+  DataSetNode,
   parseCompilerHint
 } from './parser';
 
@@ -30,9 +31,12 @@ export function getDocumentSymbols(text: string): DocumentSymbol[] {
   for (const loc of wf.locations) {
     const locSymbol: DocumentSymbol = {
       name: `<${loc.name}>`,
-      detail: loc.dataset.pairs.length > 0
-        ? `{${loc.dataset.pairs.map((p) => `(${p.first}, ${p.second})`).join(', ')}}`
-        : '{}',
+      detail:
+        loc.dataset.elements && loc.dataset.elements.length > 0
+          ? `{${loc.dataset.elements.map((e) => (e.kind === 'collection' ? `U(${e.port}, ${e.data})` : `(${e.first}, ${e.second})`)).join(', ')}}`
+          : loc.dataset.pairs.length > 0
+          ? `{${loc.dataset.pairs.map((p) => `(${p.first}, ${p.second})`).join(', ')}}`
+          : '{}',
       kind: SymbolKind.Module,
       range: toLspRange(loc.range),
       selectionRange: {
@@ -57,11 +61,21 @@ export function getDocumentSymbols(text: string): DocumentSymbol[] {
       const phaseStr = info.tag || info.phase || 'compiler_hint';
       const details: string[] = [];
       if (info.phase) details.push(`phase: ${info.phase}`);
+      if (info.stream) details.push(`stream: ${info.stream}`);
+      if (info.worker) details.push(`worker: ${info.worker}`);
+      if (info.port) details.push(`port: ${info.port}`);
       if (info.json.method) details.push(`method: ${info.json.method}`);
       if (info.json.v !== undefined) details.push(`v: ${info.json.v}`);
 
+      let symbolName = `${phaseStr} (${regionStr})`;
+      if (info.tag === 'gather_stream' || info.tag === 'scatter_stream') {
+        symbolName = `${info.tag}: ${info.stream || 'stream'}`;
+      } else if (info.region !== undefined) {
+        symbolName = `${phaseStr} (Region ${info.region})`;
+      }
+
       locSymbol.children!.push({
-        name: `${phaseStr} (${regionStr})`,
+        name: symbolName,
         detail: details.join(', '),
         kind: SymbolKind.Package,
         range: toLspRange(h.range),
@@ -69,14 +83,23 @@ export function getDocumentSymbols(text: string): DocumentSymbol[] {
       });
     }
 
+    const formatFlow = (ds: DataSetNode): string => {
+      if (ds.elements && ds.elements.length > 0) {
+        return ds.elements
+          .map((e) => (e.kind === 'collection' ? `U(${e.port}, ${e.data})` : e.first))
+          .join(', ');
+      }
+      return ds.pairs.map((pr) => pr.first).join(', ');
+    };
+
     // Recursively collect predicates from location's trace
     function collectPredicates(trace: TraceNode | undefined): void {
       if (!trace) return;
       if (trace.kind === 'tracePred') {
         const p = trace.pred;
         if (p.kind === 'exec') {
-          const inFlow = p.flow.from.pairs.map((pr) => pr.first).join(', ');
-          const outFlow = p.flow.to.pairs.map((pr) => pr.first).join(', ');
+          const inFlow = formatFlow(p.flow.from);
+          const outFlow = formatFlow(p.flow.to);
           locSymbol.children!.push({
             name: `exec: ${p.step}`,
             detail: `{${inFlow}} -> {${outFlow}} @ {${p.mapping.locations.join(', ')}}`,
@@ -84,7 +107,7 @@ export function getDocumentSymbols(text: string): DocumentSymbol[] {
             range: toLspRange(p.range),
             selectionRange: p.stepRange ? toLspRange(p.stepRange) : toLspRange(p.range)
           });
-        } else if (p.kind === 'send' || p.kind === 'move') {
+        } else if (p.kind === 'send' || p.kind === 'move' || p.kind === 'scatter_send') {
           const dsts = p.dst.locations.join(', ');
           const dataDisplay = p.data.index ? `${p.data.name}[${p.data.index}]` : p.data.name;
           locSymbol.children!.push({
@@ -94,7 +117,7 @@ export function getDocumentSymbols(text: string): DocumentSymbol[] {
             range: toLspRange(p.range),
             selectionRange: p.portRange ? toLspRange(p.portRange) : toLspRange(p.range)
           });
-        } else if (p.kind === 'recv') {
+        } else if (p.kind === 'recv' || p.kind === 'gather_recv') {
           const dsts = p.dst.locations.join(', ');
           const dataDisplay = p.data.index ? `${p.data.name}[${p.data.index}]` : p.data.name;
           locSymbol.children!.push({
@@ -103,6 +126,14 @@ export function getDocumentSymbols(text: string): DocumentSymbol[] {
             kind: SymbolKind.Event,
             range: toLspRange(p.range),
             selectionRange: p.portRange ? toLspRange(p.portRange) : toLspRange(p.range)
+          });
+        } else if (p.kind === 'end') {
+          locSymbol.children!.push({
+            name: 'end: end()',
+            detail: 'termination marker',
+            kind: SymbolKind.Function,
+            range: toLspRange(p.range),
+            selectionRange: toLspRange(p.range)
           });
         }
       } else if (trace.kind === 'traceRepl') {
@@ -133,7 +164,7 @@ export function getDefinition(text: string, uri: string, position: LspPosition):
   const wf = parser.parseWorkflow();
 
   const token = findTokenAt(text, position);
-  if (!token || token.kind !== TokenKind.Identifier) {
+  if (!token || (token.kind !== TokenKind.Identifier && token.kind !== TokenKind.Variable)) {
     return null;
   }
 
@@ -152,7 +183,7 @@ export function getDefinition(text: string, uri: string, position: LspPosition):
 }
 
 /**
- * Finds all references to a location, port, or step identifier across the document.
+ * Finds all references to a location, port, step, or variable identifier across the document.
  */
 export function getReferences(
   text: string,
@@ -161,7 +192,7 @@ export function getReferences(
   includeDeclaration: boolean = true
 ): LspLocation[] {
   const token = findTokenAt(text, position);
-  if (!token || token.kind !== TokenKind.Identifier) {
+  if (!token || (token.kind !== TokenKind.Identifier && token.kind !== TokenKind.Variable)) {
     return [];
   }
 
@@ -171,7 +202,7 @@ export function getReferences(
   const references: LspLocation[] = [];
 
   for (const t of allTokens) {
-    if (t.kind === TokenKind.Identifier && t.value === name) {
+    if ((t.kind === TokenKind.Identifier || t.kind === TokenKind.Variable) && t.value === name) {
       references.push({
         uri,
         range: toLspRange(t.range)
@@ -259,26 +290,30 @@ export function getFoldingRanges(text: string): FoldingRange[] {
   return foldingRanges;
 }
 
-function findTokenAt(text: string, position: LspPosition): Token | null {
+export function findTokenAt(text: string, position: LspPosition): Token | null {
   const lexer = new Lexer(text);
   const tokens = lexer.tokenize(true);
 
+  // First pass: strictly inside [start, end)
   for (const t of tokens) {
     if (
-      position.line >= t.range.start.line &&
+      t.range.start.line <= position.line &&
       position.line <= t.range.end.line &&
-      position.character >= t.range.start.character &&
-      position.character < t.range.end.character
+      t.range.start.character <= position.character &&
+      position.character < t.range.end.character &&
+      t.kind !== TokenKind.Whitespace
     ) {
       return t;
     }
   }
 
+  // Second pass: boundary at end
   for (const t of tokens) {
     if (
-      position.line >= t.range.start.line &&
+      t.range.start.line <= position.line &&
       position.line <= t.range.end.line &&
-      position.character === t.range.end.character &&
+      t.range.start.character <= position.character &&
+      position.character <= t.range.end.character &&
       t.kind !== TokenKind.Whitespace
     ) {
       return t;

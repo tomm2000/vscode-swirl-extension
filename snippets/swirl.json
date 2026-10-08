@@ -36,6 +36,20 @@
     ],
     "description": "Swirl move predicate"
   },
+  "End Predicate": {
+    "prefix": "end",
+    "body": [
+      "end()"
+    ],
+    "description": "Swirl end() termination primitive"
+  },
+  "Collection Descriptor": {
+    "prefix": "U",
+    "body": [
+      "U(${1:port}, ${2:data})"
+    ],
+    "description": "Swirl finite collection descriptor U(port, data)"
+  },
   "Move Tuple Predicate": {
     "prefix": "movetuple",
     "body": [
@@ -78,5 +92,69 @@
       ")"
     ],
     "description": "Swirl choice block"
+  },
+  "Guarded Choice": {
+    "prefix": "gchoice",
+    "body": [
+      "(",
+      "  ${1:branch1}",
+      ")",
+      "+[${2:port} has data]",
+      "(",
+      "  ${3:branch2}",
+      ")"
+    ],
+    "description": "Swirl guarded choice block"
+  },
+  "Scatter Stream Hint": {
+    "prefix": "scatter_stream",
+    "body": [
+      "// @compiler begin scatter_stream ${1:stream_collection} ${2:location} ${3:port}",
+      "(",
+      "  !(",
+      "    (",
+      "      move((${4:?element}, ${5:?key}) -> ${3:port}, ${6:l0}, ${2:location})",
+      "    )",
+      "    +[${3:port} has data]",
+      "    (",
+      "      end()",
+      "    )",
+      "  )",
+      "  .",
+      "  send(eof -> ${3:port}, ${6:l0}, ${2:location})",
+      ")",
+      "// @compiler end scatter_stream ${1:stream_collection} ${2:location} ${3:port}"
+    ],
+    "description": "Swirl scatter stream block with compiler hints"
+  },
+  "Gather Stream Hint": {
+    "prefix": "gather_stream",
+    "body": [
+      "// @compiler begin gather_stream ${1:results_collection} ${2:worker} ${3:port}",
+      "(",
+      "  !(",
+      "    (",
+      "      recv((${4:?output}, ${5:?key}) -> ${3:port}, ${2:worker}, ${6:l0})",
+      "    )",
+      "    +",
+      "    (",
+      "      recv(eof -> ${3:port}, ${2:worker}, ${6:l0})",
+      "      .",
+      "      end()",
+      "    )",
+      "  )",
+      ")",
+      "// @compiler end gather_stream ${1:results_collection} ${2:worker} ${3:port}"
+    ],
+    "description": "Swirl gather stream block with compiler hints"
+  },
+  "Scatter Worker Hint": {
+    "prefix": "scatter_worker",
+    "body": [
+      "// @compiler begin scatter.worker ${1:0}",
+      "${2:body}",
+      "// @compiler end scatter.worker ${1:0}"
+    ],
+    "description": "Swirl scatter worker block with compiler hint"
   }
 }

@@ -140,7 +140,7 @@ export function getInlayHints(
           paddingRight: true,
           tooltip: 'Target location(s) where this step executes'
         });
-      } else {
+      } else if (p.kind === 'send' || p.kind === 'recv' || p.kind === 'move' || p.kind === 'scatter_send' || p.kind === 'gather_recv') {
         // send, recv, move
         // Parameter 1: data
         addHint({
@@ -181,6 +181,9 @@ export function getInlayHints(
           paddingRight: true,
           tooltip: 'Target destination location(s)'
         });
+      } else if (p.kind === 'end') {
+        // end() has no parameters
+        continue;
       }
     }
   }

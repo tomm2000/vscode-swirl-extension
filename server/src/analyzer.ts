@@ -56,6 +56,7 @@ export function analyzeSemantics(text: string): Diagnostic[] {
   interface SendRecord {
     src: string;
     dst: string;
+    data: string;
     port: string;
     range: { start: { line: number; character: number }; end: { line: number; character: number } };
   }
@@ -63,6 +64,7 @@ export function analyzeSemantics(text: string): Diagnostic[] {
   interface RecvRecord {
     src: string;
     dst: string;
+    data: string;
     port: string;
     range: { start: { line: number; character: number }; end: { line: number; character: number } };
   }
@@ -129,6 +131,7 @@ export function analyzeSemantics(text: string): Diagnostic[] {
           allSends.push({
             src: p.src,
             dst: d,
+            data: p.data.name,
             port: p.port,
             range: {
               start: { line: p.range.start.line, character: p.range.start.character },
@@ -164,6 +167,7 @@ export function analyzeSemantics(text: string): Diagnostic[] {
           allRecvs.push({
             src: p.src,
             dst: d,
+            data: p.data.name,
             port: p.port,
             range: {
               start: { line: p.range.start.line, character: p.range.start.character },
@@ -188,14 +192,34 @@ export function analyzeSemantics(text: string): Diagnostic[] {
 
   // 3. Orphaned / Unmatched channel checking
   // Cross-check sends with recvs
+  function channelsMatch(s: SendRecord, r: RecvRecord): boolean {
+    if (s.src !== r.src || s.dst !== r.dst) return false;
+    if (s.port === 'eof' || r.port === 'eof' || s.data === 'eof' || r.data === 'eof') return true;
+    const sTokens = [s.port, s.data];
+    const rTokens = [r.port, r.data];
+    for (const st of sTokens) {
+      if (!st) continue;
+      const sBase = st.replace(/\[.*?\]/g, '').trim();
+      for (const rt of rTokens) {
+        if (!rt) continue;
+        const rBase = rt.replace(/\[.*?\]/g, '').trim();
+        if (
+          st === rt ||
+          sBase === rBase ||
+          st.includes(rt) ||
+          rt.includes(st) ||
+          sBase.includes(rBase) ||
+          rBase.includes(sBase)
+        ) {
+          return true;
+        }
+      }
+    }
+    return false;
+  }
+
   for (const s of allSends) {
-    // Look for matching recv
-    const hasMatch = allRecvs.some(
-      (r) =>
-        r.src === s.src &&
-        r.dst === s.dst &&
-        (r.port === s.port || r.port.includes(s.port) || s.port.includes(r.port) || s.port === 'eof' || r.port === 'eof')
-    );
+    const hasMatch = allRecvs.some((r) => channelsMatch(s, r));
     if (!hasMatch && knownLocs.has(s.dst)) {
       diagnostics.push({
         severity: DiagnosticSeverity.Information,
@@ -210,12 +234,7 @@ export function analyzeSemantics(text: string): Diagnostic[] {
   }
 
   for (const r of allRecvs) {
-    const hasMatch = allSends.some(
-      (s) =>
-        s.src === r.src &&
-        s.dst === r.dst &&
-        (s.port === r.port || s.port.includes(r.port) || r.port.includes(s.port) || s.port === 'eof' || r.port === 'eof')
-    );
+    const hasMatch = allSends.some((s) => channelsMatch(s, r));
     if (!hasMatch && knownLocs.has(r.src)) {
       diagnostics.push({
         severity: DiagnosticSeverity.Information,
@@ -272,6 +291,36 @@ export function analyzeSemantics(text: string): Diagnostic[] {
               end: { line: c.range.end.line, character: c.range.end.character }
             },
             message: `Mismatched compiler hint phase: end specifies '${info.tag}', but open block was '${open.info.tag}'`,
+            source: 'swirl'
+          });
+        } else if (info.stream && open.info.stream && info.stream !== open.info.stream) {
+          diagnostics.push({
+            severity: DiagnosticSeverity.Warning,
+            range: {
+              start: { line: c.range.start.line, character: c.range.start.character },
+              end: { line: c.range.end.line, character: c.range.end.character }
+            },
+            message: `Mismatched compiler hint stream collection: end specifies '${info.stream}', but open block was '${open.info.stream}'`,
+            source: 'swirl'
+          });
+        } else if (info.worker && open.info.worker && info.worker !== open.info.worker) {
+          diagnostics.push({
+            severity: DiagnosticSeverity.Warning,
+            range: {
+              start: { line: c.range.start.line, character: c.range.start.character },
+              end: { line: c.range.end.line, character: c.range.end.character }
+            },
+            message: `Mismatched compiler hint worker/location: end specifies '${info.worker}', but open block was '${open.info.worker}'`,
+            source: 'swirl'
+          });
+        } else if (info.port && open.info.port && info.port !== open.info.port) {
+          diagnostics.push({
+            severity: DiagnosticSeverity.Warning,
+            range: {
+              start: { line: c.range.start.line, character: c.range.start.character },
+              end: { line: c.range.end.line, character: c.range.end.character }
+            },
+            message: `Mismatched compiler hint port/channel: end specifies '${info.port}', but open block was '${open.info.port}'`,
             source: 'swirl'
           });
         }

@@ -19,7 +19,8 @@
     "Snippets"
   ],
   "activationEvents": [
-    "onLanguage:swirl"
+    "onLanguage:swirl",
+    "onCommand:swirl.openSimplifiedView"
   ],
   "main": "./client/out/extension",
   "contributes": {
@@ -54,6 +55,18 @@
         "command": "swirl.formatDocument",
         "title": "Format Swirl Document",
         "category": "Swirl"
+      },
+      {
+        "command": "swirl.openSimplifiedView",
+        "title": "Open Simplified View",
+        "category": "Swirl",
+        "icon": "$(preview)"
+      },
+      {
+        "command": "swirl.openOriginalView",
+        "title": "Open Original Source",
+        "category": "Swirl",
+        "icon": "$(file-code)"
       }
     ],
     "configuration": {
@@ -88,6 +101,27 @@
       "[swirl]": {
         "editor.inlayHints.enabled": "on"
       }
+    },
+    "menus": {
+      "editor/title": [
+        {
+          "command": "swirl.openSimplifiedView",
+          "when": "resourceLangId == swirl && resourceScheme != swirl-simplified",
+          "group": "navigation"
+        },
+        {
+          "command": "swirl.openOriginalView",
+          "when": "resourceScheme == swirl-simplified",
+          "group": "navigation"
+        }
+      ],
+      "editor/context": [
+        {
+          "command": "swirl.openSimplifiedView",
+          "when": "resourceLangId == swirl && resourceScheme != swirl-simplified",
+          "group": "1_modification"
+        }
+      ]
     }
   },
   "scripts": {
@@ -96,7 +130,7 @@
     "watch": "tsc -b client server -w",
     "bundle": "esbuild client/src/extension.ts --bundle --outfile=client/out/extension.js --external:vscode --platform=node --format=cjs && esbuild server/src/server.ts --bundle --outfile=server/out/server.js --platform=node --format=cjs",
     "package": "vsce package --no-dependencies",
-    "test": "pnpm run compile && node server/out/test/formatter.test.js && node server/out/test/features.test.js && node server/out/test/tier2.test.js && node server/out/test/inlay-hints.test.js && node server/out/test/compiler-hints.test.js && node server/out/test/syntax-update.test.js && node server/out/test/tuple-data.test.js"
+    "test": "pnpm run compile && node server/out/test/formatter.test.js && node server/out/test/features.test.js && node server/out/test/tier2.test.js && node server/out/test/inlay-hints.test.js && node server/out/test/compiler-hints.test.js && node server/out/test/syntax-update.test.js && node server/out/test/tuple-data.test.js && node server/out/test/new-grammar.test.js && node server/out/test/simplifier.test.js && node server/out/test/scatter-begin.test.js"
   },
   "devDependencies": {
     "@vscode/vsce": "^4.0.0",

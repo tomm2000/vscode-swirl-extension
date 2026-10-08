@@ -1,14 +1,13 @@
 import { Hover, MarkupKind, Position, Range } from 'vscode-languageserver/node';
 import { SWIRL_PREDICATES, SWIRL_KEYWORDS } from './swirl-data';
-import { Parser, WorkflowNode, LocationNode, TraceNode, PredicateNode, parseCompilerHint } from './parser';
-import { Lexer, TokenKind } from './lexer';
+import { Parser, WorkflowNode, LocationNode, TraceNode, PredicateNode, parseCompilerHint, DataSetNode } from './parser';
 
 /**
  * Provides rich hover tooltips for compiler hints, locations, steps,
- * predicates, and language keywords.
+ * predicates, language keywords, dynamic variables, and collection descriptors.
  */
 export function getHover(text: string, position: Position): Hover | null {
-  const lines = text.split('\n');
+  const lines = text.split(/\r?\n/);
   if (position.line < 0 || position.line >= lines.length) {
     return null;
   }
@@ -28,6 +27,9 @@ export function getHover(text: string, position: Position): Hover | null {
     const rows: string[] = [];
     if (hint.tag) rows.push(`| **Phase / Target** | \`${hint.tag}\` |`);
     if (hint.action) rows.push(`| **Action** | \`${hint.action}\` |`);
+    if (hint.stream) rows.push(`| **Stream / Collection** | \`${hint.stream}\` |`);
+    if (hint.worker) rows.push(`| **Worker / Location** | \`${hint.worker}\` |`);
+    if (hint.port) rows.push(`| **Channel / Port** | \`${hint.port}\` |`);
     if (hint.region !== undefined) rows.push(`| **Region** | \`${hint.region}\` |`);
     if (hint.json.v !== undefined) rows.push(`| **Schema Version** | \`${hint.json.v}\` |`);
     if (hint.json.version !== undefined) rows.push(`| **Schema Version** | \`${hint.json.version}\` |`);
@@ -60,13 +62,15 @@ export function getHover(text: string, position: Position): Hover | null {
     };
   }
 
-  // Find word at position
+  // 2. Extract word at cursor
   const wordRange = getWordRangeAtPosition(lineText, position.line, position.character);
-  if (!wordRange) return null;
+  if (!wordRange) {
+    return null;
+  }
 
   const word = lineText.substring(wordRange.start.character, wordRange.end.character);
 
-  // 2. Check built-in predicates
+  // 3. Check Built-in Predicates & Keywords
   if (SWIRL_PREDICATES[word]) {
     const doc = SWIRL_PREDICATES[word];
     return {
@@ -84,14 +88,13 @@ export function getHover(text: string, position: Position): Hover | null {
     };
   }
 
-  // 3. Check built-in keywords
   if (SWIRL_KEYWORDS[word]) {
     const doc = SWIRL_KEYWORDS[word];
     return {
       contents: {
         kind: MarkupKind.Markdown,
         value: [
-          `### Keyword / Constant: \`${doc.name}\``,
+          `### Keyword: \`${doc.name}\``,
           `\`\`\`swirl\n${doc.signature}\n\`\`\``,
           doc.description,
           `**Example:**`,
@@ -102,21 +105,31 @@ export function getHover(text: string, position: Position): Hover | null {
     };
   }
 
-  // Parse workflow for contextual symbols (Locations and Steps)
+  // Check Dynamic Variable
+  if (word.startsWith('?')) {
+    return {
+      contents: {
+        kind: MarkupKind.Markdown,
+        value: [
+          `### Dynamic Variable: \`${word}\``,
+          `Dynamic runtime variable/key parameter in parallel scatter-gather workflows.`
+        ].join('\n\n')
+      },
+      range: wordRange
+    };
+  }
+
   const parser = new Parser(text);
   const wf = parser.parseWorkflow();
 
-  function collectPredicates(trace: TraceNode | undefined, acc: PredicateNode[] = []): PredicateNode[] {
-    if (!trace) return acc;
-    if (trace.kind === 'tracePred') acc.push(trace.pred);
-    else if (trace.kind === 'traceRepl') collectPredicates(trace.subTrace, acc);
-    else if (trace.kind === 'traceParen') collectPredicates(trace.inner, acc);
-    else if (trace.kind === 'traceOp') {
-      collectPredicates(trace.left, acc);
-      collectPredicates(trace.right, acc);
+  const formatPairs = (ds: DataSetNode) => {
+    if (ds.elements && ds.elements.length > 0) {
+      return ds.elements
+        .map((e) => (e.kind === 'collection' ? `\`U(${e.port}, ${e.data})\`` : `\`(${e.first}, ${e.second})\``))
+        .join(', ');
     }
-    return acc;
-  }
+    return ds.pairs.map((p) => `\`(${p.first}, ${p.second})\``).join(', ');
+  };
 
   // 4. Check if word is a Location
   const loc = wf.locations.find((l) => l.name === word);
@@ -134,9 +147,10 @@ export function getHover(text: string, position: Position): Hover | null {
       }
     }
 
-    const dsText = loc.dataset.pairs.length > 0
-      ? loc.dataset.pairs.map((p) => `\`(${p.first}, ${p.second})\``).join(', ')
-      : '*(empty)*';
+    const dsText =
+      (loc.dataset.elements && loc.dataset.elements.length > 0) || loc.dataset.pairs.length > 0
+        ? formatPairs(loc.dataset)
+        : '*(empty)*';
 
     const md: string[] = [
       `### Location: \`<${loc.name}>\``,
@@ -162,8 +176,8 @@ export function getHover(text: string, position: Position): Hover | null {
       (p): p is Extract<PredicateNode, { kind: 'exec' }> => p.kind === 'exec' && p.step === word
     );
     if (exec) {
-      const inPorts = exec.flow.from.pairs.map((p) => `\`(${p.first}, ${p.second})\``).join(', ');
-      const outPorts = exec.flow.to.pairs.map((p) => `\`(${p.first}, ${p.second})\``).join(', ');
+      const inPorts = formatPairs(exec.flow.from);
+      const outPorts = formatPairs(exec.flow.to);
       const mappings = exec.mapping.locations.map((m) => `\`<${m}>\``).join(', ');
 
       const md: string[] = [
@@ -191,7 +205,7 @@ function getWordRangeAtPosition(lineText: string, line: number, character: numbe
     return null;
   }
 
-  const isWordChar = (ch: string) => /[a-zA-Z0-9_]/.test(ch);
+  const isWordChar = (ch: string) => /[a-zA-Z0-9_?]/.test(ch);
 
   let start = character;
   while (start > 0 && isWordChar(lineText[start - 1])) {
@@ -211,4 +225,21 @@ function getWordRangeAtPosition(lineText: string, line: number, character: numbe
     start: { line, character: start },
     end: { line, character: end }
   };
+}
+
+function collectPredicates(trace: TraceNode | undefined): PredicateNode[] {
+  if (!trace) return [];
+  if (trace.kind === 'tracePred') {
+    return [trace.pred];
+  }
+  if (trace.kind === 'traceRepl') {
+    return collectPredicates(trace.subTrace);
+  }
+  if (trace.kind === 'traceParen') {
+    return collectPredicates(trace.inner);
+  }
+  if (trace.kind === 'traceOp') {
+    return [...collectPredicates(trace.left), ...collectPredicates(trace.right)];
+  }
+  return [];
 }

@@ -10,6 +10,15 @@
       "include": "#comments"
     },
     {
+      "include": "#variables"
+    },
+    {
+      "include": "#collections"
+    },
+    {
+      "include": "#guards"
+    },
+    {
       "include": "#keywords"
     },
     {
@@ -32,35 +41,45 @@
     "compiler-hints": {
       "patterns": [
         {
-          "match": "(\\/\\/\\s*(?:\\[compiler\\](?:\\([^)]*\\))?|@compiler))\\s+(begin|end)(?:\\s+([a-zA-Z0-9_.-]+))?(?:\\s+(\\d+|[a-zA-Z0-9_:-]+))?(?:\\s+({.*}))?\\s*$",
-          "captures": {
+          "begin": "(\\/\\/\\s*(?:\\[compiler\\](?:\\([^)]*\\))?|@compiler_hint_(?:start|end)|@compiler))(?=\\s|$)",
+          "beginCaptures": {
             "1": {
               "name": "keyword.control.directive.swirl"
-            },
-            "2": {
-              "name": "keyword.control.swirl"
-            },
-            "3": {
-              "name": "entity.name.tag.swirl"
-            },
-            "4": {
-              "name": "constant.numeric.region.swirl"
-            },
-            "5": {
-              "name": "meta.embedded.json.swirl string.unquoted.swirl"
             }
-          }
-        },
-        {
-          "match": "(//\\s*@compiler_hint_(?:start|end))\\s*(.*)$",
-          "captures": {
-            "1": {
-              "name": "keyword.control.directive.swirl"
+          },
+          "end": "$",
+          "patterns": [
+            {
+              "name": "keyword.control.swirl",
+              "match": "\\b(begin|end)\\b"
             },
-            "2": {
-              "name": "meta.embedded.json.swirl string.unquoted.swirl"
+            {
+              "name": "entity.name.tag.swirl",
+              "match": "\\b(gather_stream|scatter_stream|[a-zA-Z0-9_]+\\.[a-zA-Z0-9_]+)\\b"
+            },
+            {
+              "include": "#variables"
+            },
+            {
+              "name": "meta.embedded.json.swirl string.unquoted.swirl",
+              "match": "\\{.*\\}"
+            },
+            {
+              "name": "entity.name.type.location.swirl",
+              "match": "\\bl[0-9]+\\b"
+            },
+            {
+              "name": "constant.numeric.region.swirl",
+              "match": "\\b[0-9]+\\b"
+            },
+            {
+              "include": "#delimiters"
+            },
+            {
+              "name": "variable.parameter.swirl",
+              "match": "\\b[a-zA-Z_][a-zA-Z0-9_]*\\b"
             }
-          }
+          ]
         }
       ]
     },
@@ -77,11 +96,39 @@
         }
       ]
     },
+    "variables": {
+      "patterns": [
+        {
+          "name": "variable.other.swirl",
+          "match": "\\?[a-zA-Z_][a-zA-Z0-9_]*"
+        }
+      ]
+    },
+    "collections": {
+      "patterns": [
+        {
+          "name": "support.function.collection.swirl",
+          "match": "\\bU(?=\\s*\\()"
+        }
+      ]
+    },
+    "guards": {
+      "patterns": [
+        {
+          "name": "keyword.operator.guard.swirl",
+          "match": "\\bhas\\s+data(?:\\s+in)?\\b"
+        }
+      ]
+    },
     "keywords": {
       "patterns": [
         {
           "name": "keyword.control.swirl",
-          "match": "\\b(eof|in)\\b"
+          "match": "\\b(begin|eof|in|has)\\b"
+        },
+        {
+          "name": "constant.language.scope.swirl",
+          "match": "\\broot\\b"
         }
       ]
     },
@@ -89,7 +136,7 @@
       "patterns": [
         {
           "name": "support.function.predicate.swirl",
-          "match": "\\b(exec|send|recv|move)\\b"
+          "match": "\\b(exec|send|recv|move|end|scatter_send|gather_recv)\\b"
         }
       ]
     },
@@ -118,6 +165,10 @@
         {
           "name": "keyword.operator.range.swirl",
           "match": "\\.\\."
+        },
+        {
+          "name": "keyword.operator.path.swirl",
+          "match": "/"
         }
       ]
     },

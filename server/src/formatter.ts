@@ -84,6 +84,68 @@ export class SwirlFormatter {
       }
     }
 
+    // Identify predicate argument spans
+    const predOpenParens = new Set<number>();
+    const predCloseParens = new Set<number>();
+    const insidePredRanges: { start: number; end: number }[] = [];
+
+    for (let i = 0; i < tokens.length; i++) {
+      const t = tokens[i];
+      if (
+        t.kind === TokenKind.Exec ||
+        t.kind === TokenKind.Send ||
+        t.kind === TokenKind.Recv ||
+        t.kind === TokenKind.Move ||
+        t.kind === TokenKind.ScatterSend ||
+        t.kind === TokenKind.GatherRecv ||
+        t.kind === TokenKind.End
+      ) {
+        for (let j = i + 1; j < tokens.length; j++) {
+          if (tokens[j].kind === TokenKind.OpenParen) {
+            predOpenParens.add(j);
+            const closeIdx = matchingParen.get(j);
+            if (closeIdx !== undefined) {
+              predCloseParens.add(closeIdx);
+              insidePredRanges.push({ start: j, end: closeIdx });
+            }
+            break;
+          }
+        }
+      }
+    }
+
+    const isInsidePred = (idx: number) => insidePredRanges.some((r) => idx > r.start && idx < r.end);
+
+    // Determine which locations are multiline
+    const multilineLocations = new Set<number>();
+    for (const [startIdx, endIdx] of locationEnd.entries()) {
+      if (tokens[endIdx].range.start.line > tokens[startIdx].range.start.line) {
+        multilineLocations.add(startIdx);
+        continue;
+      }
+      let hasComplex = false;
+      let len = 0;
+      for (let j = startIdx; j <= endIdx; j++) {
+        len += tokens[j].value.length + 1;
+        if (
+          tokens[j].kind === TokenKind.LineComment ||
+          tokens[j].kind === TokenKind.BlockComment ||
+          tokens[j].kind === TokenKind.Plus ||
+          tokens[j].kind === TokenKind.Exclamation
+        ) {
+          hasComplex = true;
+          break;
+        }
+        if (tokens[j].kind === TokenKind.Pipe && j !== endIdx) {
+          hasComplex = true;
+          break;
+        }
+      }
+      if (hasComplex || len > 80) {
+        multilineLocations.add(startIdx);
+      }
+    }
+
     const lines: string[] = [];
     let currentLine = '';
     let indent = 0;
@@ -119,33 +181,47 @@ export class SwirlFormatter {
       const prev = i > 0 ? tokens[i - 1] : null;
       const next = i < tokens.length - 1 ? tokens[i + 1] : null;
 
-      const newlinesBefore = prev ? (t.range.start.line - prev.range.end.line) : 0;
+      const newlinesBefore = prev ? t.range.start.line - prev.range.end.line : 0;
       const isStartOfLineInSource = i === 0 || newlinesBefore > 0;
       const hasBlankBefore = newlinesBefore >= 2;
 
       // Line Comment
       if (t.kind === TokenKind.LineComment) {
-        if (isStartOfLineInSource) {
+        if (currentLocIsMultiline) {
           if (currentLine !== '') pushLine();
           if (hasBlankBefore) ensureBlankLine();
-          currentLine = this.getIndent(indent) + t.value.trim();
+          emit(t.value.trim());
           pushLine();
         } else {
-          currentLine = currentLine.trimEnd() + '  ' + t.value.trim();
-          pushLine();
+          if (isStartOfLineInSource) {
+            if (currentLine !== '') pushLine();
+            if (hasBlankBefore) ensureBlankLine();
+            currentLine = this.getIndent(indent) + t.value.trim();
+            pushLine();
+          } else {
+            currentLine = currentLine.trimEnd() + '  ' + t.value.trim();
+            pushLine();
+          }
         }
         continue;
       }
 
       // Block Comment
       if (t.kind === TokenKind.BlockComment) {
-        if (isStartOfLineInSource) {
+        if (currentLocIsMultiline) {
           if (currentLine !== '') pushLine();
           if (hasBlankBefore) ensureBlankLine();
-          currentLine = this.getIndent(indent) + t.value.trim();
+          emit(t.value.trim());
           pushLine();
         } else {
-          currentLine += ' ' + t.value.trim();
+          if (isStartOfLineInSource) {
+            if (currentLine !== '') pushLine();
+            if (hasBlankBefore) ensureBlankLine();
+            currentLine = this.getIndent(indent) + t.value.trim();
+            pushLine();
+          } else {
+            currentLine += ' ' + t.value.trim();
+          }
         }
         continue;
       }
@@ -153,15 +229,14 @@ export class SwirlFormatter {
       // Location start '<'
       if (t.kind === TokenKind.Lt) {
         if (currentLine !== '') pushLine();
-        if (hasBlankBefore) ensureBlankLine();
+        if (lines.length > 0) ensureBlankLine();
         indent = 0;
         emit('<');
         inLocationHeader = true;
         locationCommaCount = 0;
         braceDepth = 0;
         parenDepth = 0;
-        const endIdx = locationEnd.get(i);
-        currentLocIsMultiline = endIdx !== undefined && tokens[endIdx].range.start.line > t.range.start.line;
+        currentLocIsMultiline = multilineLocations.has(i);
         continue;
       }
 
@@ -176,11 +251,13 @@ export class SwirlFormatter {
           emit('>');
         }
 
+        currentLocIsMultiline = false;
+
         if (next && next.kind === TokenKind.Pipe) {
           emit(' |');
           i++; // consume pipe
           pushLine();
-          if (currentLocIsMultiline) ensureBlankLine();
+          ensureBlankLine();
         } else {
           pushLine();
         }
@@ -228,6 +305,12 @@ export class SwirlFormatter {
         continue;
       }
 
+      // Key path separator '/'
+      if (t.kind === TokenKind.Slash) {
+        emit(' / ');
+        continue;
+      }
+
       // Open bracket '['
       if (t.kind === TokenKind.OpenBracket) {
         emit('[');
@@ -243,21 +326,16 @@ export class SwirlFormatter {
       // Open paren '('
       if (t.kind === TokenKind.OpenParen) {
         parenDepth++;
-        const closeIdx = matchingParen.get(i);
-        const isMultiline = closeIdx !== undefined && tokens[closeIdx].range.start.line > t.range.start.line;
-        const isPred = prev && (
-          prev.kind === TokenKind.Exec ||
-          prev.kind === TokenKind.Send ||
-          prev.kind === TokenKind.Recv ||
-          prev.kind === TokenKind.Move
-        );
+        const isPredArg = predOpenParens.has(i);
+        const isInnerTuple = isInsidePred(i);
 
-        if (isPred || inLocationHeader) {
+        if (isPredArg || isInnerTuple || inLocationHeader || braceDepth > 0) {
           emit('(');
           continue;
         }
 
-        if (isMultiline) {
+        // Trace paren
+        if (currentLocIsMultiline) {
           if (prev && prev.kind === TokenKind.Exclamation) {
             emit('(');
             pushLine();
@@ -276,24 +354,20 @@ export class SwirlFormatter {
       // Close paren ')'
       if (t.kind === TokenKind.CloseParen) {
         parenDepth = Math.max(0, parenDepth - 1);
-        const openIdx = matchingParen.get(i);
-        const isMultiline = openIdx !== undefined && t.range.start.line > tokens[openIdx].range.start.line;
-        const isPred = openIdx !== undefined && openIdx > 0 && [
-          TokenKind.Exec,
-          TokenKind.Send,
-          TokenKind.Recv,
-          TokenKind.Move
-        ].includes(tokens[openIdx - 1].kind);
+        const isPredArg = predCloseParens.has(i);
+        const isInnerTuple = isInsidePred(i);
 
-        if (isPred || inLocationHeader) {
+        if (isPredArg || isInnerTuple || inLocationHeader || braceDepth > 0) {
           emit(')');
           continue;
         }
 
-        if (isMultiline) {
-          indent = Math.max(0, indent - 1);
+        // Trace paren
+        if (currentLocIsMultiline) {
+          indent = Math.max(1, indent - 1);
           if (currentLine !== '') pushLine();
           emit(')');
+          pushLine();
         } else {
           emit(')');
         }
@@ -302,59 +376,99 @@ export class SwirlFormatter {
 
       // Sequential dot '.'
       if (t.kind === TokenKind.Dot) {
-        if (isStartOfLineInSource) {
+        if (currentLocIsMultiline) {
           if (currentLine !== '') pushLine();
           emit('.');
           pushLine();
         } else {
           emit(' .');
-          if (next && next.range.start.line > t.range.end.line) {
-            pushLine();
-          }
         }
         continue;
       }
 
       // Choice plus '+'
       if (t.kind === TokenKind.Plus) {
-        if (isStartOfLineInSource) {
+        if (next && next.kind === TokenKind.OpenBracket) {
+          // Guarded choice: +[guard]
+          let bDepth = 1;
+          let closeIdx = -1;
+          for (let j = i + 2; j < tokens.length; j++) {
+            if (tokens[j].kind === TokenKind.OpenBracket) {
+              bDepth++;
+            } else if (tokens[j].kind === TokenKind.CloseBracket) {
+              bDepth--;
+              if (bDepth === 0) {
+                closeIdx = j;
+                break;
+              }
+            }
+          }
+
+          let guardStr = '';
+          if (closeIdx !== -1) {
+            const guardToks: string[] = [];
+            for (let j = i + 2; j < closeIdx; j++) {
+              const gt = tokens[j];
+              const prevGt = j > i + 2 ? tokens[j - 1] : null;
+              if (gt.kind === TokenKind.OpenBracket) {
+                guardToks.push('[');
+              } else if (gt.kind === TokenKind.CloseBracket) {
+                guardToks.push(']');
+              } else if (gt.kind === TokenKind.Comma) {
+                guardToks.push(', ');
+              } else if (gt.kind === TokenKind.Slash) {
+                guardToks.push(' / ');
+              } else {
+                if (
+                  prevGt &&
+                  prevGt.kind !== TokenKind.OpenBracket &&
+                  prevGt.kind !== TokenKind.Comma &&
+                  prevGt.kind !== TokenKind.Slash
+                ) {
+                  guardToks.push(' ');
+                }
+                guardToks.push(gt.value);
+              }
+            }
+            guardStr = guardToks.join('');
+            i = closeIdx; // jump to close bracket
+          }
+
+          if (currentLocIsMultiline) {
+            if (currentLine !== '') pushLine();
+            emit(`+[${guardStr}]`);
+            pushLine();
+          } else {
+            emit(` +[${guardStr}] `);
+          }
+          continue;
+        }
+
+        if (currentLocIsMultiline) {
           if (currentLine !== '') pushLine();
           emit('+');
-          if (next && next.range.start.line > t.range.end.line) {
-            pushLine();
-          } else {
-            emit(' ');
-          }
+          pushLine();
         } else {
-          if (next && next.range.start.line > t.range.end.line) {
-            emit(' +');
-            pushLine();
-          } else {
-            emit(' + ');
-          }
+          emit(' + ');
         }
         continue;
       }
 
       // Parallel pipe '|'
       if (t.kind === TokenKind.Pipe) {
-        if (isStartOfLineInSource) {
+        if (currentLocIsMultiline) {
           if (currentLine !== '') pushLine();
-          emit('| ');
+          emit('|');
+          pushLine();
         } else {
-          if (next && next.range.start.line > t.range.end.line) {
-            emit(' |');
-            pushLine();
-          } else {
-            emit(' | ');
-          }
+          emit(' | ');
         }
         continue;
       }
 
       // Replication '!'
       if (t.kind === TokenKind.Exclamation) {
-        if (isStartOfLineInSource) {
+        if (currentLocIsMultiline) {
           if (currentLine !== '') pushLine();
           if (hasBlankBefore) ensureBlankLine();
           emit('!');
@@ -364,13 +478,20 @@ export class SwirlFormatter {
         continue;
       }
 
-      // Identifiers, numbers, keywords
-      if (!inLocationHeader && isStartOfLineInSource) {
-        if (currentLine !== '') pushLine();
-        if (hasBlankBefore) ensureBlankLine();
+      // Identifiers, variables, numbers, keywords
+      if (currentLocIsMultiline) {
+        if (currentLine === '') {
+          if (hasBlankBefore) ensureBlankLine();
+        }
         emit(t.value);
       } else {
-        emit(t.value);
+        if (!inLocationHeader && isStartOfLineInSource) {
+          if (currentLine !== '') pushLine();
+          if (hasBlankBefore) ensureBlankLine();
+          emit(t.value);
+        } else {
+          emit(t.value);
+        }
       }
     }
 

@@ -189,6 +189,70 @@ function runCompilerHintTests() {
   assert(formatted.includes('// @compiler end scatter.dispatch 0'));
   console.log('✓ Formatter formats and indents code while preserving bare compiler hint directives');
 
+  // Test 11: Multi-argument stream compiler hints
+  const gsHint = parseCompilerHint('// @compiler begin gather_stream results_0_0 l0 p_compute_result_key_0');
+  assert(gsHint !== null);
+  assert.strictEqual(gsHint.action, 'begin');
+  assert.strictEqual(gsHint.tag, 'gather_stream');
+  assert.strictEqual(gsHint.stream, 'results_0_0');
+  assert.strictEqual(gsHint.worker, 'l0');
+  assert.strictEqual(gsHint.port, 'p_compute_result_key_0');
+
+  const ssHint = parseCompilerHint('// @compiler begin scatter_stream stream_element_element_d_groups l5 p_scatter_0_2[?key_0, ?key_1]');
+  assert(ssHint !== null);
+  assert.strictEqual(ssHint.action, 'begin');
+  assert.strictEqual(ssHint.tag, 'scatter_stream');
+  assert.strictEqual(ssHint.stream, 'stream_element_element_d_groups');
+  assert.strictEqual(ssHint.worker, 'l5');
+  assert.strictEqual(ssHint.port, 'p_scatter_0_2[?key_0, ?key_1]');
+  console.log('✓ Multi-argument gather_stream and scatter_stream hints parse correctly with bracketed port expressions');
+
+  // Test 12: Detecting stream, worker, and port mismatches
+  const mismatchStream = `<l0, {},
+// @compiler begin gather_stream results_0_0 l0 p_out
+0 .
+// @compiler end gather_stream results_0_1 l0 p_out
+0>`;
+  const mismatchStreamDiags = analyzeSemantics(mismatchStream);
+  assert(mismatchStreamDiags.some((d) => d.message.includes('Mismatched compiler hint stream collection')));
+
+  const mismatchWorker = `<l0, {},
+// @compiler begin gather_stream results_0_0 l0 p_out
+0 .
+// @compiler end gather_stream results_0_0 l1 p_out
+0>`;
+  const mismatchWorkerDiags = analyzeSemantics(mismatchWorker);
+  assert(mismatchWorkerDiags.some((d) => d.message.includes('Mismatched compiler hint worker/location')));
+
+  const mismatchPort = `<l0, {},
+// @compiler begin gather_stream results_0_0 l0 p_out_1
+0 .
+// @compiler end gather_stream results_0_0 l0 p_out_2
+0>`;
+  const mismatchPortDiags = analyzeSemantics(mismatchPort);
+  assert(mismatchPortDiags.some((d) => d.message.includes('Mismatched compiler hint port/channel')));
+  console.log('✓ Mismatches in stream collection, worker location, and port channel are accurately detected');
+
+  // Test 13: Hover and Outline Symbols on stream compiler hints
+  const streamSnippet = `<l0, {},
+// @compiler begin gather_stream results_0_0 l1 p_compute_result_key_0
+0 .
+// @compiler end gather_stream results_0_0 l1 p_compute_result_key_0
+0>`;
+  const streamHover = getHover(streamSnippet, { line: 1, character: 15 });
+  assert(streamHover !== null);
+  assert((streamHover.contents as any).value.includes('results_0_0'));
+  assert((streamHover.contents as any).value.includes('l1'));
+  assert((streamHover.contents as any).value.includes('p_compute_result_key_0'));
+
+  const streamSymbols = getDocumentSymbols(streamSnippet);
+  const l0Sym = streamSymbols.find((s) => s.name === '<l0>');
+  assert(l0Sym && l0Sym.children);
+  const gsSym = l0Sym.children.find((c) => c.name.includes('gather_stream: results_0_0'));
+  assert(gsSym, 'Outline should include gather_stream: results_0_0');
+  assert(gsSym.detail?.includes('p_compute_result_key_0'));
+  console.log('✓ Rich Hover and Outline Symbols accurately represent stream compiler hints');
+
   console.log('All New Compiler Hints Syntax tests passed successfully!\n');
 }
 

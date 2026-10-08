@@ -13,15 +13,24 @@ export enum TokenKind {
   Pipe = '|',
   Plus = '+',
   Exclamation = '!',
+  Question = '?',
+  Slash = '/',
   
   Exec = 'exec',
   Send = 'send',
   Recv = 'recv',
   Move = 'move',
+  ScatterSend = 'scatter_send',
+  GatherRecv = 'gather_recv',
+  End = 'end',
+  BeginKeyword = 'begin',
   EofKeyword = 'eof',
   InKeyword = 'in',
+  HasKeyword = 'has',
+  UKeyword = 'U',
   Zero = '0',
 
+  Variable = 'Variable',
   Identifier = 'Identifier',
   Number = 'Number',
   LineComment = 'LineComment',
@@ -66,25 +75,25 @@ export class Lexer {
         continue;
       }
       tokens.push(token);
+      if (token.kind === TokenKind.Eof) {
+        break;
+      }
     }
-    tokens.push({
-      kind: TokenKind.Eof,
-      value: '',
-      range: {
-        start: { line: this.line, character: this.character },
-        end: { line: this.line, character: this.character }
-      },
-      offset: this.pos
-    });
     return tokens;
   }
 
   private peek(offset = 0): string {
     const idx = this.pos + offset;
-    return idx < this.input.length ? this.input[idx] : '';
+    if (idx >= this.input.length) {
+      return '';
+    }
+    return this.input[idx];
   }
 
   private advance(): string {
+    if (this.pos >= this.input.length) {
+      return '';
+    }
     const ch = this.input[this.pos++];
     if (ch === '\n') {
       this.line++;
@@ -171,6 +180,23 @@ export class Lexer {
       };
     }
 
+    // Dynamic variable identifier: ?name
+    if (ch === '?' && /[a-zA-Z_]/.test(this.peek(1))) {
+      let value = this.advance(); // '?'
+      while (this.pos < this.input.length && /[a-zA-Z0-9_]/.test(this.peek())) {
+        value += this.advance();
+      }
+      return {
+        kind: TokenKind.Variable,
+        value,
+        range: {
+          start: { line: startLine, character: startCharacter },
+          end: { line: this.line, character: this.character }
+        },
+        offset: startOffset
+      };
+    }
+
     // Single-character tokens
     const singleTokens: Record<string, TokenKind> = {
       '<': TokenKind.Lt,
@@ -185,7 +211,9 @@ export class Lexer {
       '.': TokenKind.Dot,
       '|': TokenKind.Pipe,
       '+': TokenKind.Plus,
-      '!': TokenKind.Exclamation
+      '!': TokenKind.Exclamation,
+      '?': TokenKind.Question,
+      '/': TokenKind.Slash
     };
 
     if (singleTokens[ch]) {
@@ -253,11 +281,29 @@ export class Lexer {
         case 'move':
           kind = TokenKind.Move;
           break;
+        case 'scatter_send':
+          kind = TokenKind.ScatterSend;
+          break;
+        case 'gather_recv':
+          kind = TokenKind.GatherRecv;
+          break;
+        case 'end':
+          kind = TokenKind.End;
+          break;
+        case 'begin':
+          kind = TokenKind.BeginKeyword;
+          break;
         case 'eof':
           kind = TokenKind.EofKeyword;
           break;
         case 'in':
           kind = TokenKind.InKeyword;
+          break;
+        case 'has':
+          kind = TokenKind.HasKeyword;
+          break;
+        case 'U':
+          kind = TokenKind.UKeyword;
           break;
       }
 
@@ -272,16 +318,20 @@ export class Lexer {
       };
     }
 
-    // Unknown single character
-    const unknownVal = this.advance();
+    // Unknown character fallback
+    const unknownChar = this.advance();
     return {
       kind: TokenKind.Unknown,
-      value: unknownVal,
+      value: unknownChar,
       range: {
         start: { line: startLine, character: startCharacter },
         end: { line: this.line, character: this.character }
       },
       offset: startOffset
     };
+  }
+
+  private isAtEnd(): boolean {
+    return this.pos >= this.input.length;
   }
 }

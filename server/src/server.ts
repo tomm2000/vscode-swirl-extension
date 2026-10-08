@@ -77,7 +77,7 @@ connection.onInitialize((_params: InitializeParams): InitializeResult => {
       hoverProvider: true,
       completionProvider: {
         resolveProvider: false,
-        triggerCharacters: ['(', '{', '<', '.', '+', '|', '!', ' ']
+        triggerCharacters: ['(', '{', '<', '.', '+', '|', '!', ' ', '@']
       },
       documentSymbolProvider: true,
       definitionProvider: true,
