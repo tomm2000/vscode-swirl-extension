@@ -172,3 +172,7 @@ The extension uses a Language Server Protocol client/server architecture:
 | `syntaxes/` | TextMate highlighting grammar. |
 | `snippets/` | SWIRL snippet templates. |
 | `examples/` | Sample workflow files. |
+
+## License
+
+[MIT](LICENSE).

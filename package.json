@@ -4,6 +4,7 @@
   "description": "Rich language support for the Swirl intermediate language (.swirl) featuring syntax highlighting, document formatting, semantic diagnostics, outline symbols, definition navigation, references, snippets, and parameter inlay hints.",
   "version": "0.1.0",
   "publisher": "tommo",
+  "license": "MIT",
   "repository": {
     "type": "git",
     "url": "https://github.com/tomm2000/vscode-swirl-extension"
