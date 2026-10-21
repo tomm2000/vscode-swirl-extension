@@ -157,8 +157,10 @@ Build the installable extension:
 
 ```bash
 pnpm run package
-code --install-extension vscode-swirl-0.1.0.vsix
+code --install-extension "vscode-swirl-$(node -p "require('./package.json').version").vsix"
 ```
+
+For GitHub Releases, push a tag in the form `vMAJOR.MINOR.PATCH` (for example, `v0.2.0`). GitHub Actions derives the version from that tag and updates all three package manifests in its build checkout before packaging. The VSIX filename, embedded extension version, workflow artifact, and release name therefore use the same version. These build-time updates are not committed back to the repository.
 
 Packaging compiles and bundles the client and server before creating `vscode-swirl-<version>.vsix`; adjust the installation filename when the version changes.
 
