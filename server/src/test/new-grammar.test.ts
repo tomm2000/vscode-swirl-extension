@@ -17,17 +17,17 @@ function runNewGrammarTests() {
     exec(process_batch, {(p_in, d_in)} -> {U(p_task_0, tasks_0)}, {l0})
     .
     !(
-      (move((?payload_0, ?key_0) -> p_task_0, l0, l1))
-      +[p_task_0 has data]
-      (end())
+      move((?payload_0, ?key_0) -> p_task_0, l0, l1)
+      +
+      send(eof -> p_task_0, l0, l1)
     )
   )
   |
   (
     !(
-      (recv((?payload_1, ?key_1) -> p_gather_data_0_1, l1, l0))
-      +[p_gather_data_0_1 has data]
-      (end())
+      recv((?payload_1, ?key_1) -> p_gather_data_0_1, l1, l0)
+      +
+      recv(eof -> p_gather_data_0_1, l1, l0)
     )
     .
     exec(_s_gather_0, {U(p_gather_data_0_1, results_0_1)} -> {(p_out, d_out)}, {l0})
@@ -45,7 +45,7 @@ function runNewGrammarTests() {
     (
       recv(eof -> p_task_0, l0, l1)
       .
-      end()
+      send(eof -> p_gather_data_0_1, l1, l0)
     )
   )
 >
@@ -68,16 +68,12 @@ function runNewGrammarTests() {
     const formatted = formatter.format(minimalWorkflow);
     const formattedAgain = formatter.format(formatted);
     assert.strictEqual(formatted, formattedAgain, 'Formatter should be idempotent on minimal workflow');
-    assert(formatted.includes('+[p_task_0 has data]'), 'Formatted code should preserve guarded choice');
-    assert(formatted.includes('end()'), 'Formatted code should preserve end() primitive');
     assert(formatted.includes('U(p_task_0, tasks_0)'), 'Formatted code should preserve U collection descriptor');
 
     // 4. Document symbols
     const symbols = getDocumentSymbols(minimalWorkflow);
     assert.strictEqual(symbols.length, 2, 'Should have 2 location symbols');
     const l0 = symbols[0];
-    const endSymbol = l0.children?.find((c) => c.name.includes('end: end()'));
-    assert(endSymbol, 'Outline should include end() symbol');
     const execSymbol = l0.children?.find((c) => c.name.includes('exec: process_batch'));
     assert(execSymbol, 'Outline should include exec symbol');
 
@@ -91,7 +87,7 @@ function runNewGrammarTests() {
     const dataHints = hints.filter((h) => h.label === 'data:');
     assert(dataHints.length >= 3, 'Should have parameter hints for data payloads');
 
-    console.log('✓ Minimal new syntax workflow (with U, end(), +[guard], ?vars) passes all tools');
+    console.log('✓ Minimal new syntax workflow (with U, ?vars) passes all tools');
   }
 
   // Test 2: Multi-element qualified ports and collections: p_task_2[?key_0, ?key_1]
@@ -103,8 +99,7 @@ function runNewGrammarTests() {
 >
 |
 <l1, {},
-  recv((?payload, ?key_0, ?key_1) -> p_task_2[?key_0, ?key_1], l0, l1) .
-  end()
+  recv((?payload, ?key_0, ?key_1) -> p_task_2[?key_0, ?key_1], l0, l1)
 >
 `;
     const parser = new Parser(multiIndexWorkflow);
@@ -127,17 +122,9 @@ function runNewGrammarTests() {
     const testDoc = `
 <l0, {U(p_data, tasks)},
   exec(step1, {U(p_data, tasks)} -> {(p_out, d_out)}, {l0}) .
-  recv(?item -> p_data, l1, l0) .
-  end()
+  recv(?item -> p_data, l1, l0)
 >
 `;
-    // Hover on 'end'
-    const endHover = getHover(testDoc, { line: 4, character: 3 });
-    assert(endHover, 'Should provide hover for end');
-    assert(
-      (endHover.contents as any).value.includes('Atomically terminates and closes its nearest enclosing replication owner'),
-      'Hover should include end() documentation'
-    );
 
     // Hover on 'U'
     const uHover = getHover(testDoc, { line: 1, character: 6 });
@@ -154,7 +141,7 @@ function runNewGrammarTests() {
       (varHover.contents as any).value.includes('Dynamic runtime variable'),
       'Hover should document dynamic variable'
     );
-    console.log('✓ Rich Hover documentation for end(), U(...), and ?vars verified');
+    console.log('✓ Rich Hover documentation for U(...) and ?vars verified');
   }
 
   // Test 4: Real-world swirlc build/new-syntax/part-1c examples

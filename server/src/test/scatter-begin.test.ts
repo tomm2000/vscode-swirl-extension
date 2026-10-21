@@ -41,7 +41,7 @@ function runScatterBeginTests() {
       !(
         move((?a, root / ?iteration) -> p_a, source_a, worker)
         +[p_a has data in root]
-        end()
+        send(eof -> p_a, source_a, worker)
       )
     >`;
     const parser = new Parser(code);

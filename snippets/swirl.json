@@ -36,13 +36,6 @@
     ],
     "description": "Swirl move predicate"
   },
-  "End Predicate": {
-    "prefix": "end",
-    "body": [
-      "end()"
-    ],
-    "description": "Swirl end() termination primitive"
-  },
   "Collection Descriptor": {
     "prefix": "U",
     "body": [
@@ -110,17 +103,9 @@
     "prefix": "scatter_stream",
     "body": [
       "// @compiler begin scatter_stream ${1:stream_collection} ${2:location} ${3:port}",
-      "(",
-      "  !(",
-      "    (",
-      "      move((${4:?element}, ${5:?key}) -> ${3:port}, ${6:l0}, ${2:location})",
-      "    )",
-      "    +[${3:port} has data]",
-      "    (",
-      "      end()",
-      "    )",
-      "  )",
-      "  .",
+      "!(",
+      "  move((${4:?element}, ${5:?key}) -> ${3:port}, ${6:l0}, ${2:location})",
+      "  +",
       "  send(eof -> ${3:port}, ${6:l0}, ${2:location})",
       ")",
       "// @compiler end scatter_stream ${1:stream_collection} ${2:location} ${3:port}"
@@ -131,18 +116,10 @@
     "prefix": "gather_stream",
     "body": [
       "// @compiler begin gather_stream ${1:results_collection} ${2:worker} ${3:port}",
-      "(",
-      "  !(",
-      "    (",
-      "      recv((${4:?output}, ${5:?key}) -> ${3:port}, ${2:worker}, ${6:l0})",
-      "    )",
-      "    +",
-      "    (",
-      "      recv(eof -> ${3:port}, ${2:worker}, ${6:l0})",
-      "      .",
-      "      end()",
-      "    )",
-      "  )",
+      "!(",
+      "  recv((${4:?output}, ${5:?key}) -> ${3:port}, ${2:worker}, ${6:l0})",
+      "  +",
+      "  recv(eof -> ${3:port}, ${2:worker}, ${6:l0})",
       ")",
       "// @compiler end gather_stream ${1:results_collection} ${2:worker} ${3:port}"
     ],

@@ -22,7 +22,6 @@ export enum TokenKind {
   Move = 'move',
   ScatterSend = 'scatter_send',
   GatherRecv = 'gather_recv',
-  End = 'end',
   BeginKeyword = 'begin',
   EofKeyword = 'eof',
   InKeyword = 'in',
@@ -286,9 +285,6 @@ export class Lexer {
           break;
         case 'gather_recv':
           kind = TokenKind.GatherRecv;
-          break;
-        case 'end':
-          kind = TokenKind.End;
           break;
         case 'begin':
           kind = TokenKind.BeginKeyword;

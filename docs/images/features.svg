@@ -1,0 +1,31 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1020" height="828" viewBox="0 0 1020 828" role="img" aria-labelledby="title desc">
+<title id="title">SWIRL extension feature examples</title>
+<desc id="desc">Illustration: syntax highlighting and argument labels, an unknown-location diagnostic, a simplified stream region, and normalized formatting.</desc>
+<rect width="1020" height="828" rx="16" fill="#101820"/>
+<text x="32" y="44" fill="#f0f6fc" font-family="sans-serif" font-size="24" font-weight="bold">SWIRL · inspect generated workflows</text>
+<text x="32" y="72" fill="#a9bbc9" font-family="sans-serif" font-size="14">Illustrative examples · explore the generated execution plan</text>
+<rect x="24" y="94" width="972" height="162" rx="10" fill="#1e2933"/>
+<text x="44" y="123" fill="#79c0ff" font-family="sans-serif" font-size="15" font-weight="bold">01  HIGHLIGHTING / INLAY HINTS</text>
+<text x="44" y="149" fill="#becbd6" font-family="sans-serif" font-size="14">Syntax colors above · inlay labels below</text>
+<text x="450" y="153" font-family="monospace" font-size="16" xml:space="preserve"><tspan fill="#dcdcaa">send</tspan><tspan fill="#d4d4d4">(</tspan><tspan fill="#9cdcfe">d1</tspan><tspan fill="#d4d4d4"> -&gt; </tspan><tspan fill="#ce9178">p1</tspan><tspan fill="#d4d4d4">, </tspan><tspan fill="#4ec9b0">l0</tspan><tspan fill="#d4d4d4">, </tspan><tspan fill="#4ec9b0">l1</tspan><tspan fill="#d4d4d4">)</tspan></text>
+<text x="450" y="205" font-family="monospace" font-size="16" xml:space="preserve"><tspan fill="#dcdcaa">send</tspan><tspan fill="#d4d4d4">(</tspan><tspan fill="#8b949e">data: </tspan><tspan fill="#9cdcfe">d1</tspan><tspan fill="#d4d4d4"> -&gt; </tspan><tspan fill="#8b949e">port: </tspan><tspan fill="#ce9178">p1</tspan><tspan fill="#d4d4d4">, </tspan><tspan fill="#8b949e">src: </tspan><tspan fill="#4ec9b0">l0</tspan><tspan fill="#d4d4d4">, </tspan><tspan fill="#8b949e">dst: </tspan><tspan fill="#4ec9b0">l1</tspan><tspan fill="#d4d4d4">)</tspan></text>
+<rect x="24" y="272" width="972" height="162" rx="10" fill="#1e2933"/>
+<text x="44" y="301" fill="#79c0ff" font-family="sans-serif" font-size="15" font-weight="bold">02  DIAGNOSTICS</text>
+<text x="44" y="327" fill="#becbd6" font-family="sans-serif" font-size="14">Catch unknown workflow locations</text>
+<text x="450" y="306" fill="#d4d4d4" font-family="monospace" font-size="18" xml:space="preserve">send(d1 → p1, l0, l_missing)</text>
+<text x="450" y="336" fill="#f48771" font-family="monospace" font-size="18" xml:space="preserve">                  ~~~~~~~~~</text>
+<text x="450" y="366" fill="#f48771" font-family="monospace" font-size="18" xml:space="preserve">Unknown destination location</text>
+<text x="450" y="396" fill="#f48771" font-family="monospace" font-size="18" xml:space="preserve">&#x27;l_missing&#x27; in send</text>
+<rect x="24" y="450" width="972" height="162" rx="10" fill="#1e2933"/>
+<text x="44" y="479" fill="#79c0ff" font-family="sans-serif" font-size="15" font-weight="bold">03  SIMPLIFIED VIEW</text>
+<text x="44" y="505" fill="#becbd6" font-family="sans-serif" font-size="14">Collapse compiler-marked stream regions</text>
+<text x="450" y="484" fill="#d4d4d4" font-family="monospace" font-size="18" xml:space="preserve">!(move(...) + send(eof ...))</text>
+<text x="450" y="514" fill="#808080" font-family="monospace" font-size="18" xml:space="preserve">                 ↓</text>
+<text x="450" y="544" fill="#4ec9b0" font-family="monospace" font-size="18" xml:space="preserve">scatter_send(stream → port, l0, l1)</text>
+<rect x="24" y="628" width="972" height="162" rx="10" fill="#1e2933"/>
+<text x="44" y="657" fill="#79c0ff" font-family="sans-serif" font-size="15" font-weight="bold">04  FORMATTING</text>
+<text x="44" y="683" fill="#becbd6" font-family="sans-serif" font-size="14">Normalize spacing and indentation</text>
+<text x="450" y="662" fill="#d4d4d4" font-family="monospace" font-size="18">send(d1-&gt;p1,l0,l1)</text>
+<text x="450" y="692" fill="#808080" font-family="monospace" font-size="18">                 ↓</text>
+<text x="450" y="722" fill="#4ec9b0" font-family="monospace" font-size="18">send(d1 -&gt; p1, l0, l1)</text>
+</svg>

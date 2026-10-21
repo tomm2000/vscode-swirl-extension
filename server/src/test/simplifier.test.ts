@@ -13,16 +13,10 @@ function runSimplifierTests() {
     const input = `      // @compiler begin scatter_stream stream_d_snp_files l1 p_scatter_1_0
       (
         !(
-          (
-            move((?element_d_snp_files, ?key_0) -> p_scatter_1_0, l0, l1)
-          )
-          +[p_scatter_1_0 has data]
-          (
-            end()
-          )
+          move((?element_d_snp_files, ?key_0) -> p_scatter_1_0, l0, l1)
+          +
+          send(eof -> p_scatter_1_0, l0, l1)
         )
-        .
-        send(eof -> p_scatter_1_0, l0, l1)
       )
       // @compiler end scatter_stream stream_d_snp_files l1 p_scatter_1_0`;
 
@@ -37,15 +31,9 @@ function runSimplifierTests() {
     const input = `      // @compiler begin gather_stream stream_d_chromosome_overlap_files l1 p_gather_data_0_2
       (
         !(
-          (
-            recv((?d_chromosome_mutation_overlap_output_file, ?key_0) -> p_gather_data_0_2, l1, l0)
-          )
+          recv((?d_chromosome_mutation_overlap_output_file, ?key_0) -> p_gather_data_0_2, l1, l0)
           +
-          (
-            recv(eof -> p_gather_data_0_2, l1, l0)
-            .
-            end()
-          )
+          recv(eof -> p_gather_data_0_2, l1, l0)
         )
       )
       // @compiler end gather_stream stream_d_chromosome_overlap_files l1 p_gather_data_0_2`;
@@ -61,12 +49,10 @@ function runSimplifierTests() {
     const input = `// @compiler begin scatter_stream stream_element_element_d_groups l5 p_scatter_0_2[?key_0, ?key_1]
 (
   !(
-    (move((?element_element_d_groups, ?key_0, ?key_1) -> p_scatter_0_2[?key_0, ?key_1], l0, l5))
-    +[p_scatter_0_2[?key_0, ?key_1] has data]
-    (end())
+    move((?element_element_d_groups, ?key_0, ?key_1) -> p_scatter_0_2[?key_0, ?key_1], l0, l5)
+    +
+    send(eof -> p_scatter_0_2[?key_0, ?key_1], l0, l5)
   )
-  .
-  send(eof -> p_scatter_0_2[?key_0, ?key_1], l0, l5)
 )
 // @compiler end scatter_stream stream_element_element_d_groups l5 p_scatter_0_2[?key_0, ?key_1]`;
 

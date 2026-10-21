@@ -9,7 +9,7 @@
 .
 send((?element_d_compute_result, ?key_0) -> p_compute_result, l0, l0))
   +
-  (recv(eof -> p_scatter_0_0, l0, l0) . end())
+  recv(eof -> p_scatter_0_0, l0, l0)
 )
 .
 recv(eof -> p_scatter_1_0, l0, l0)
@@ -22,9 +22,9 @@ send(eof -> p_compute_result, l0, l0)
 // @compiler begin gather_stream stream_d_compute_result l0 p_compute_result
 (
 !(
-  (recv((?element_d_compute_result, ?key_0) -> p_compute_result, l0, l0))
+  recv((?element_d_compute_result, ?key_0) -> p_compute_result, l0, l0)
   +
-  (recv(eof -> p_compute_result, l0, l0) . end())
+  recv(eof -> p_compute_result, l0, l0)
 )
 )
 // @compiler end gather_stream stream_d_compute_result l0 p_compute_result
@@ -32,9 +32,9 @@ send(eof -> p_compute_result, l0, l0)
 // @compiler begin gather_stream stream_d_compute_result l1 p_compute_result
 (
 !(
-  (recv((?element_d_compute_result, ?key_0) -> p_compute_result, l1, l0))
+  recv((?element_d_compute_result, ?key_0) -> p_compute_result, l1, l0)
   +
-  (recv(eof -> p_compute_result, l1, l0) . end())
+  recv(eof -> p_compute_result, l1, l0)
 )
 )
 // @compiler end gather_stream stream_d_compute_result l1 p_compute_result
@@ -42,9 +42,9 @@ send(eof -> p_compute_result, l0, l0)
 // @compiler begin gather_stream stream_d_compute_result l2 p_compute_result
 (
 !(
-  (recv((?element_d_compute_result, ?key_0) -> p_compute_result, l2, l0))
+  recv((?element_d_compute_result, ?key_0) -> p_compute_result, l2, l0)
   +
-  (recv(eof -> p_compute_result, l2, l0) . end())
+  recv(eof -> p_compute_result, l2, l0)
 )
 )
 // @compiler end gather_stream stream_d_compute_result l2 p_compute_result
@@ -59,36 +59,30 @@ exec(_s_dispatch_0_0, {(p_files_a, d_files_a)} -> {U(p_scatter_0_0, stream_d_fil
 // @compiler begin scatter_stream stream_d_files_a l0 p_scatter_0_0
 (
 !(
-  (move((?element_d_files_a, ?key_0) -> p_scatter_0_0, l0, l0))
-  +[p_scatter_0_0 has data]
-  (end())
+  move((?element_d_files_a, ?key_0) -> p_scatter_0_0, l0, l0)
+  +
+  send(eof -> p_scatter_0_0, l0, l0)
 )
-.
-send(eof -> p_scatter_0_0, l0, l0)
 )
 // @compiler end scatter_stream stream_d_files_a l0 p_scatter_0_0
 |
 // @compiler begin scatter_stream stream_d_files_a l1 p_scatter_0_0
 (
 !(
-  (move((?element_d_files_a, ?key_0) -> p_scatter_0_0, l0, l1))
-  +[p_scatter_0_0 has data]
-  (end())
+  move((?element_d_files_a, ?key_0) -> p_scatter_0_0, l0, l1)
+  +
+  send(eof -> p_scatter_0_0, l0, l1)
 )
-.
-send(eof -> p_scatter_0_0, l0, l1)
 )
 // @compiler end scatter_stream stream_d_files_a l1 p_scatter_0_0
 |
 // @compiler begin scatter_stream stream_d_files_a l2 p_scatter_0_0
 (
 !(
-  (move((?element_d_files_a, ?key_0) -> p_scatter_0_0, l0, l2))
-  +[p_scatter_0_0 has data]
-  (end())
+  move((?element_d_files_a, ?key_0) -> p_scatter_0_0, l0, l2)
+  +
+  send(eof -> p_scatter_0_0, l0, l2)
 )
-.
-send(eof -> p_scatter_0_0, l0, l2)
 )
 // @compiler end scatter_stream stream_d_files_a l2 p_scatter_0_0
 )
@@ -100,36 +94,30 @@ exec(_s_dispatch_1_0, {(p_files_b, d_files_b)} -> {U(p_scatter_1_0, stream_d_fil
 // @compiler begin scatter_stream stream_d_files_b l0 p_scatter_1_0
 (
 !(
-  (move((?element_d_files_b, ?key_0) -> p_scatter_1_0, l0, l0))
-  +[p_scatter_1_0 has data]
-  (end())
+  move((?element_d_files_b, ?key_0) -> p_scatter_1_0, l0, l0)
+  +
+  send(eof -> p_scatter_1_0, l0, l0)
 )
-.
-send(eof -> p_scatter_1_0, l0, l0)
 )
 // @compiler end scatter_stream stream_d_files_b l0 p_scatter_1_0
 |
 // @compiler begin scatter_stream stream_d_files_b l1 p_scatter_1_0
 (
 !(
-  (move((?element_d_files_b, ?key_0) -> p_scatter_1_0, l0, l1))
-  +[p_scatter_1_0 has data]
-  (end())
+  move((?element_d_files_b, ?key_0) -> p_scatter_1_0, l0, l1)
+  +
+  send(eof -> p_scatter_1_0, l0, l1)
 )
-.
-send(eof -> p_scatter_1_0, l0, l1)
 )
 // @compiler end scatter_stream stream_d_files_b l1 p_scatter_1_0
 |
 // @compiler begin scatter_stream stream_d_files_b l2 p_scatter_1_0
 (
 !(
-  (move((?element_d_files_b, ?key_0) -> p_scatter_1_0, l0, l2))
-  +[p_scatter_1_0 has data]
-  (end())
+  move((?element_d_files_b, ?key_0) -> p_scatter_1_0, l0, l2)
+  +
+  send(eof -> p_scatter_1_0, l0, l2)
 )
-.
-send(eof -> p_scatter_1_0, l0, l2)
 )
 // @compiler end scatter_stream stream_d_files_b l2 p_scatter_1_0
 )
@@ -146,7 +134,7 @@ exec(s_post, {(p_gather_data_0_0, d_compute_result)} -> {(p_analyze_report, d_an
 .
 send((?element_d_compute_result, ?key_0) -> p_compute_result, l1, l0))
   +
-  (recv(eof -> p_scatter_0_0, l0, l1) . end())
+  recv(eof -> p_scatter_0_0, l0, l1)
 )
 .
 recv(eof -> p_scatter_1_0, l0, l1)
@@ -162,7 +150,7 @@ send(eof -> p_compute_result, l1, l0)
 .
 send((?element_d_compute_result, ?key_0) -> p_compute_result, l2, l0))
   +
-  (recv(eof -> p_scatter_0_0, l0, l2) . end())
+  recv(eof -> p_scatter_0_0, l0, l2)
 )
 .
 recv(eof -> p_scatter_1_0, l0, l2)

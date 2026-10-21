@@ -127,14 +127,6 @@ export function getDocumentSymbols(text: string): DocumentSymbol[] {
             range: toLspRange(p.range),
             selectionRange: p.portRange ? toLspRange(p.portRange) : toLspRange(p.range)
           });
-        } else if (p.kind === 'end') {
-          locSymbol.children!.push({
-            name: 'end: end()',
-            detail: 'termination marker',
-            kind: SymbolKind.Function,
-            range: toLspRange(p.range),
-            selectionRange: toLspRange(p.range)
-          });
         }
       } else if (trace.kind === 'traceRepl') {
         collectPredicates(trace.subTrace);

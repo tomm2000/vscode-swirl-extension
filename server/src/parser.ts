@@ -83,10 +83,6 @@ export type PredicateNode =
       srcRange?: Range;
       dst: LocationSetNode;
       range: Range;
-    }
-  | {
-      kind: 'end';
-      range: Range;
     };
 
 export type TraceNode =
@@ -861,26 +857,6 @@ export class Parser {
         kind: 'traceParen',
         inner,
         range: { start: startPos, end: closeParen.range.end }
-      };
-    }
-
-    // End predicate / control primitive: end()
-    if (
-      token.kind === TokenKind.End ||
-      (token.kind === TokenKind.Identifier && token.value === 'end')
-    ) {
-      const startPos = token.range.start;
-      this.advance(); // consume 'end'
-      this.consume(TokenKind.OpenParen, "Expected '(' after 'end'");
-      const closeParen = this.consume(TokenKind.CloseParen, "Expected ')' to close 'end()'");
-      const endPred: PredicateNode = {
-        kind: 'end',
-        range: { start: startPos, end: closeParen.range.end }
-      };
-      return {
-        kind: 'tracePred',
-        pred: endPred,
-        range: endPred.range
       };
     }
 

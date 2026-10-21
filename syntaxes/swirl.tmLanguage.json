@@ -136,7 +136,7 @@
       "patterns": [
         {
           "name": "support.function.predicate.swirl",
-          "match": "\\b(exec|send|recv|move|end|scatter_send|gather_recv)\\b"
+          "match": "\\b(exec|send|recv|move|scatter_send|gather_recv)\\b"
         }
       ]
     },

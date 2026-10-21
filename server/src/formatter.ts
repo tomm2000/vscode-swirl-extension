@@ -97,8 +97,7 @@ export class SwirlFormatter {
         t.kind === TokenKind.Recv ||
         t.kind === TokenKind.Move ||
         t.kind === TokenKind.ScatterSend ||
-        t.kind === TokenKind.GatherRecv ||
-        t.kind === TokenKind.End
+        t.kind === TokenKind.GatherRecv
       ) {
         for (let j = i + 1; j < tokens.length; j++) {
           if (tokens[j].kind === TokenKind.OpenParen) {

@@ -181,9 +181,6 @@ export function getInlayHints(
           paddingRight: true,
           tooltip: 'Target destination location(s)'
         });
-      } else if (p.kind === 'end') {
-        // end() has no parameters
-        continue;
       }
     }
   }

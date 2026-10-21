@@ -41,12 +41,6 @@ export const SWIRL_PREDICATES: Record<string, SwirlConstructDoc> = {
     signature: 'gather_recv(stream -> port, src, dst)',
     description: 'High-level representation of a gather stream collection arriving from worker into destination.',
     example: 'gather_recv(stream_d_compute_result -> p_compute_result, l1, l0)'
-  },
-  end: {
-    name: 'end',
-    signature: 'end()',
-    description: 'Atomically terminates and closes its nearest enclosing replication owner, preventing further admissions.',
-    example: 'end()'
   }
 };
 
