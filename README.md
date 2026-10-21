@@ -16,7 +16,7 @@ SWIRL (Scientific Workflow Intermediate Representation Language) and its referen
 
 ## Features at a glance
 
-![Illustrated examples of syntax highlighting and inlay hints, diagnostics, simplified view, and formatting](docs/images/features.svg)
+![Illustrated examples of syntax highlighting and inlay hints, diagnostics, simplified view, and formatting](docs/images/features.png)
 
 *Illustration of extension behavior, not a screenshot.*
 
